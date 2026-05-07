@@ -39,12 +39,11 @@ export default function Dashboard() {
 
   useEffect(() => { if (user) loadSessions(); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const newChat = async (assistantId) => {
+  const newChat = async () => {
     try {
-      const { data } = await api.post('/chat/sessions', null, { params: { assistant_id: assistantId || activeAssistant } });
+      const { data } = await api.post('/chat/sessions', null, { params: { assistant_id: 'jarvis' } });
       setSessions((s) => [data, ...s]);
       setActiveSessionId(data.id);
-      setActiveAssistant(data.assistant_id);
       setView('chat');
     } catch (e) {
       toast({ title: 'Could not create chat', variant: 'destructive' });
