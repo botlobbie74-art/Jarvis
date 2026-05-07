@@ -1,5 +1,5 @@
 backend:
-  - task: "Auth signup/login/me endpoints"
+  - task: "Auth signup/login/me with Supabase"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -9,12 +9,12 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "JWT-based auth with bcrypt password hashing. POST /api/auth/signup, /api/auth/login, GET /api/auth/me with Bearer token."
+        comment: "Migrated from MongoDB to Supabase. Tables prefixed jarvis_*. JWT auth retained."
       - working: true
         agent: "testing"
-        comment: "✅ ALL AUTH TESTS PASSED (5/5): Signup creates user with JWT token, /auth/me returns correct user with Bearer token, login works with correct credentials, duplicate signup correctly rejected with 400, wrong password correctly rejected with 401. JWT authentication fully functional."
+        comment: "✅ PASSED all auth tests (Tests 1-3): POST /auth/signup creates user with JWT token, GET /auth/me returns correct user data with Bearer token, POST /auth/login authenticates with same credentials. Supabase jarvis_users table working correctly."
 
-  - task: "Chat sessions CRUD + Gemini 2.5 Pro send"
+  - task: "Chat with Gemini 2.5 Pro (Supabase)"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -24,12 +24,42 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Endpoints: GET/POST /api/chat/sessions, GET /api/chat/sessions/{id}/messages, DELETE session, POST /api/chat/send. Uses emergentintegrations LlmChat with gemini-2.5-pro and EMERGENT_LLM_KEY. Persona per assistant. History reconstructed from DB into prompt."
+        comment: "Initial implementation"
       - working: true
         agent: "testing"
-        comment: "✅ ALL CHAT TESTS PASSED (5/5): Session creation works with assistant_id=jarvis, Gemini 2.5 Pro responds correctly (NO LLM errors detected - verified with EMERGENT_LLM_KEY), message history retrieval works (2 messages: user + assistant), list sessions works, follow-up messages maintain context (correctly answered '4' to '2+2'). LLM integration fully functional."
+        comment: "✅ PASSED all chat tests (Tests 4-7): POST /chat/sessions creates session with assistant_id=jarvis, POST /chat/send returns valid Gemini 2.5 Pro response (NO 'LLM error' detected), GET /chat/sessions/{id}/messages returns 2 messages (user + assistant), GET /chat/sessions lists sessions. Supabase jarvis_chat_sessions and jarvis_chat_messages tables working correctly."
 
-  - task: "Plugins list + toggle"
+  - task: "Plugins CRUD + Google OAuth start"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Initial implementation"
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED all plugin tests (Tests 8-12): GET /plugins returns 5 plugins (Google Workspace, Google Search, YouTube, GitHub, WhatsApp) with NO Discord, all initially disconnected. POST /plugins/toggle connects/disconnects GitHub successfully. GET /auth/google/start returns auth_url containing 'accounts.google.com' and correct client_id '685252161076'. Supabase jarvis_plugins table working correctly."
+
+  - task: "Code Agent: plan, build, files, GitHub push"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Initial implementation"
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED all code agent tests (Tests 16-22): POST /projects/plan generates plan with steps array (>=3) and files_to_generate array (>=3) using Gemini 2.5 Pro. GET /projects lists projects. POST /projects/{id}/build generates files (tested with 1 file successfully). GET /projects/{id} returns project with files array containing content. PUT /projects/{id}/files updates file content (verified). POST /projects/{id}/push-github creates REAL GitHub repo and returns valid github_url (https://github.com/botlobbie74-art/simple-notes-app). DELETE /projects/{id} removes project. Supabase jarvis_projects and jarvis_project_files tables working correctly. Note: File generation count varies based on plan complexity and is capped at 12 files per build."
+
+  - task: "Tasks CRUD"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -39,47 +69,24 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "GET /api/plugins returns 6 default plugins merged with user state. POST /api/plugins/toggle to connect/disconnect."
+        comment: "Initial implementation"
       - working: true
         agent: "testing"
-        comment: "✅ ALL PLUGIN TESTS PASSED (4/4): List plugins returns 6 plugins (Google Workspace, Google Search, YouTube, GitHub, Discord, WhatsApp) all disconnected initially, connect plugin works (GitHub connected), status verification works, disconnect plugin works. Plugin management fully functional."
-
-  - task: "Background tasks CRUD"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "main"
-        comment: "GET/POST /api/tasks, DELETE /api/tasks/{id}. Auth required."
-      - working: true
-        agent: "testing"
-        comment: "✅ ALL TASK TESTS PASSED (3/3): Create task works with title/schedule/plugins, list tasks returns created tasks, delete task works. Background tasks CRUD fully functional."
+        comment: "✅ PASSED all task tests (Tests 13-15): POST /tasks creates task with title and schedule, GET /tasks lists tasks, DELETE /tasks/{id} removes task. Supabase jarvis_tasks table working correctly."
 
 frontend:
-  - task: "Landing page (Wingman clone)"
+  - task: "Jarvis rebrand + Code Agent IDE"
     implemented: true
     working: "NA"
-    file: "/app/frontend/src/pages/Landing.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-
-  - task: "Dashboard with chat/plugins/tasks"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/pages/Dashboard.jsx"
+    file: "/app/frontend/src/components/CodeAgentView.jsx"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
 
 metadata:
   created_by: "main_agent"
-  version: "1.0"
-  test_sequence: 1
+  version: "2.0"
+  test_sequence: 2
   run_ui: false
 
 test_plan:
@@ -90,6 +97,6 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Backend MVP complete. Test: signup -> token; login; protected /auth/me; create session; send message (verify Gemini 2.5 Pro responds); list sessions; list plugins; toggle plugin; create/list/delete task. Use unique email each run."
+    message: "Migrated to Supabase. Use unique email each test run. Test code agent: POST /api/projects/plan with simple description. Verify plan has steps and files_to_generate. Then POST /api/projects/{id}/build (30-60s). Then POST /api/projects/{id}/push-github. Test GET /api/auth/google/start returns auth_url with accounts.google.com."
   - agent: "testing"
-    message: "✅ BACKEND TESTING COMPLETE - ALL 18 TESTS PASSED (100% success rate). Comprehensive test suite executed covering: Auth (signup/login/me/duplicate/wrong-password), Chat (sessions CRUD, Gemini 2.5 Pro message send with context, message history), Plugins (list 6 plugins, connect/disconnect GitHub), Tasks (create/list/delete). CRITICAL: Gemini 2.5 Pro LLM integration verified working with NO errors. All endpoints respond correctly with proper status codes. JWT authentication, data persistence, and CRUD operations all functional. Backend is production-ready."
+    message: "✅ ALL 23 BACKEND API TESTS PASSED SUCCESSFULLY. Tested all endpoints in order: Auth (signup/login/me), Chat (sessions/send/messages with Gemini 2.5 Pro - NO LLM errors), Plugins (list/toggle/Google OAuth), Tasks (CRUD), Code Agent (plan/build/files/GitHub push - REAL repo created), and session deletion. Supabase integration working correctly with all jarvis_* tables. Gemini 2.5 Pro integration working without errors. GitHub push creates actual repositories. Google OAuth URL configured with correct client_id 685252161076. All core functionality verified and working. Note: LLM budget limit reached during extended testing but not during main test sequence."

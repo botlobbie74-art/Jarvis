@@ -23,6 +23,9 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+APP_BASE_URL = os.environ.get('APP_BASE_URL', 'http://localhost:3000')
 
 sb: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
@@ -354,6 +357,73 @@ async def push_to_github(pid: str, user=Depends(get_current_user)):
     except Exception as e:
         log.exception("gh err")
         raise HTTPException(500, f"GitHub push failed: {str(e)[:200]}")
+
+# ============ GOOGLE OAUTH ============
+import urllib.parse, secrets, httpx
+GOOGLE_SCOPES = [
+    "openid", "email", "profile",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/documents",
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/youtube.readonly",
+]
+GOOGLE_REDIRECT = f"{APP_BASE_URL}/api/auth/google/callback"
+_oauth_states: Dict[str, str] = {}  # state -> user_id (in-memory short-lived)
+
+@api_router.get("/auth/google/start")
+async def google_start(user=Depends(get_current_user)):
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(400, "Google OAuth not configured")
+    state = secrets.token_urlsafe(24)
+    _oauth_states[state] = user["id"]
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT,
+        "response_type": "code",
+        "scope": " ".join(GOOGLE_SCOPES),
+        "access_type": "offline",
+        "prompt": "consent",
+        "state": state,
+    }
+    return {"auth_url": f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"}
+
+from fastapi.responses import HTMLResponse
+
+@api_router.get("/auth/google/callback", response_class=HTMLResponse)
+async def google_callback(code: str = None, state: str = None, error: str = None):
+    if error or not code or not state or state not in _oauth_states:
+        return HTMLResponse(f"<script>window.close()</script><p>OAuth failed: {error or 'invalid'}</p>")
+    uid = _oauth_states.pop(state)
+    async with httpx.AsyncClient() as cli:
+        r = await cli.post("https://oauth2.googleapis.com/token", data={
+            "code": code, "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": GOOGLE_REDIRECT, "grant_type": "authorization_code",
+        })
+    if r.status_code != 200:
+        return HTMLResponse(f"<p>Token exchange failed: {r.text[:200]}</p>")
+    tok = r.json()
+    meta = {"access_token": tok.get("access_token"), "refresh_token": tok.get("refresh_token"),
+            "scope": tok.get("scope"), "expires_in": tok.get("expires_in")}
+    existing = sb.table("jarvis_plugins").select("*").eq("user_id", uid).eq("plugin_id", "google").execute()
+    doc = {"user_id": uid, "plugin_id": "google", "plugin_name": "Google Workspace",
+           "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta}
+    if existing.data:
+        sb.table("jarvis_plugins").update(doc).eq("user_id", uid).eq("plugin_id", "google").execute()
+    else:
+        doc["id"] = str(uuid.uuid4())
+        sb.table("jarvis_plugins").insert(doc).execute()
+    # also mark related plugins as connected (youtube, google_search use same token)
+    for pid, pname in [("youtube", "YouTube"), ("google_search", "Google Search")]:
+        ex = sb.table("jarvis_plugins").select("id").eq("user_id", uid).eq("plugin_id", pid).execute()
+        d2 = {"user_id": uid, "plugin_id": pid, "plugin_name": pname, "status": "connected",
+              "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": {"linked_to": "google"}}
+        if ex.data:
+            sb.table("jarvis_plugins").update(d2).eq("user_id", uid).eq("plugin_id", pid).execute()
+        else:
+            d2["id"] = str(uuid.uuid4())
+            sb.table("jarvis_plugins").insert(d2).execute()
+    return HTMLResponse("<script>window.close()</script><p>Google connected. You can close this window.</p>")
 
 # ============ APP ============
 app.include_router(api_router)

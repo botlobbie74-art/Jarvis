@@ -25,17 +25,31 @@ export default function PluginsView() {
   const toggle = async (p) => {
     setPendingId(p.id);
     try {
+      // Real Google OAuth
+      if (p.id === 'google' && p.status !== 'connected') {
+        const { data } = await api.get('/auth/google/start');
+        const popup = window.open(data.auth_url, 'google-oauth', 'width=520,height=640');
+        // poll until popup closes, then refresh
+        const timer = setInterval(async () => {
+          if (popup?.closed) {
+            clearInterval(timer);
+            await load();
+            setPendingId(null);
+          }
+        }, 800);
+        return;
+      }
       const action = p.status === 'connected' ? 'disconnect' : 'connect';
       await api.post('/plugins/toggle', { plugin_id: p.id, plugin_name: p.name, action });
       toast({
         title: action === 'connect' ? `${p.name} connected` : `${p.name} disconnected`,
-        description: action === 'connect' ? 'Wingman can now use this tool.' : '',
+        description: action === 'connect' ? 'Jarvis can now use this tool.' : '',
       });
       await load();
     } catch (e) {
       toast({ title: 'Failed', variant: 'destructive' });
     } finally {
-      setPendingId(null);
+      if (p.id !== 'google' || p.status === 'connected') setPendingId(null);
     }
   };
 
