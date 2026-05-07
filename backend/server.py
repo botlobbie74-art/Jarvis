@@ -2,14 +2,13 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-import os, logging, uuid, json
+import os, logging, uuid, json, asyncio
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 import jwt
 from passlib.context import CryptContext
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 from supabase import create_client, Client
 from github import Github, GithubException
 from llm_router import llm_call as router_call
@@ -20,7 +19,8 @@ load_dotenv(ROOT_DIR / '.env')
 JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me')
 JWT_ALG = 'HS256'
 JWT_EXP_DAYS = 7
-EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')  # legacy, not used anymore
+WA_SERVICE_URL = os.environ.get('WA_SERVICE_URL', 'http://localhost:8002')
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
@@ -164,12 +164,13 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
         names = ", ".join(p["plugin_name"] for p in plugs.data)
         sysm += f"\n\nUser has these tools connected: {names}."
     try:
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=payload.session_id, system_message=sysm).with_model("gemini", "gemini-2.5-pro")
+        sysm = sysm
         prior = sb.table("jarvis_chat_messages").select("*").eq("session_id", payload.session_id).order("created_at").execute().data
         prior = [p for p in prior if p["id"] != user_msg["id"]][-10:]
         ctx = "".join(f"\n{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in prior)
         full = (ctx + f"\nUser: {payload.message}").strip() if ctx else payload.message
-        reply = await chat.send_message(UserMessage(text=full))
+        res = await router_call("chat", sysm, full, sb=sb)
+        reply = res["content"]
     except Exception as e:
         log.exception("LLM err"); reply = f"(LLM error: {str(e)[:200]})"
     asst = {"id": str(uuid.uuid4()), "session_id": payload.session_id, "role": "assistant",
@@ -260,8 +261,8 @@ async def list_projects(user=Depends(get_current_user)):
 @api_router.post("/projects/plan")
 async def plan_project(payload: ProjectCreate, user=Depends(get_current_user)):
     pid = str(uuid.uuid4())
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"plan-{pid}", system_message=PLAN_SYSTEM).with_model("gemini", "gemini-2.5-pro")
-    raw = await chat.send_message(UserMessage(text=f"App description: {payload.description}\n\nReturn STRICT JSON ONLY."))
+    res = await router_call("planner", PLAN_SYSTEM, f"App description: {payload.description}\n\nReturn STRICT JSON ONLY.", sb=sb)
+    raw = res["content"]
     raw_clean = raw.strip()
     if raw_clean.startswith("```"):
         raw_clean = raw_clean.split("```")[1]
@@ -288,10 +289,9 @@ async def build_project(pid: str, user=Depends(get_current_user)):
         path = f.get("path") or "untitled.txt"
         purpose = f.get("purpose", "")
         try:
-            chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"code-{pid}-{path}", system_message=CODE_SYSTEM).with_model("gemini", "gemini-2.5-pro")
-            prompt = f"Project plan:\n{json.dumps(plan, indent=2)[:4000]}\n\nGenerate the COMPLETE content of file: {path}\nPurpose: {purpose}\nReturn ONLY the file content."
-            content = await chat.send_message(UserMessage(text=prompt))
-            content = content.strip()
+            prompt = f"Project plan:\n{json.dumps(plan, indent=2)[:4000]}\n\nGenerate the COMPLETE content of file: {path}\nPurpose: {purpose}\nReturn ONLY the file content, no markdown fences."
+            res = await router_call("coder", CODE_SYSTEM, prompt, sb=sb)
+            content = res["content"].strip()
             if content.startswith("```"):
                 # strip code fence
                 lines = content.split("\n")
@@ -307,6 +307,23 @@ async def build_project(pid: str, user=Depends(get_current_user)):
         except Exception as e:
             log.exception("file gen err %s", path)
     sb.table("jarvis_projects").update({"status": "ready", "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", pid).execute()
+    # Update project state
+    try:
+        sb.table("jarvis_project_state").upsert({
+            "project_id": pid, "current_phase": "review",
+            "completed_steps": [{"step": "plan"}, {"step": "code", "files": generated}],
+            "pending_steps": [{"step": "review"}, {"step": "test"}],
+            "last_summary": f"Generated {len(generated)} files. Ready for review.",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+    except Exception: pass
+    # Auto-enqueue a reviewer job in parallel
+    try:
+        rj = {"id": str(uuid.uuid4()), "project_id": pid, "agent_type": "reviewer", "status": "queued",
+              "payload": {"instruction": f"Review the {len(generated)} generated files for this project."}}
+        sb.table("jarvis_agent_jobs").insert(rj).execute()
+        asyncio.create_task(_run_job(rj["id"]))
+    except Exception: pass
     return {"ok": True, "generated": generated}
 
 @api_router.get("/projects/{pid}")
@@ -523,6 +540,41 @@ async def _run_job(job_id: str):
         log.exception("job err")
         sb.table("jarvis_agent_jobs").update({"status": "failed", "error": str(e)[:400],
                                               "finished_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
+
+# ============ WHATSAPP PROXY ============
+class WhatsAppSendIn(BaseModel):
+    to: str
+    message: str
+
+@api_router.post("/whatsapp/start")
+async def wa_start(user=Depends(get_current_user)):
+    async with httpx.AsyncClient(timeout=30) as cli:
+        r = await cli.post(f"{WA_SERVICE_URL}/wa/start", json={"user_id": user["id"]})
+    if r.status_code >= 400:
+        raise HTTPException(500, f"WA service error: {r.text[:200]}")
+    return r.json()
+
+@api_router.get("/whatsapp/status")
+async def wa_status(user=Depends(get_current_user)):
+    async with httpx.AsyncClient(timeout=10) as cli:
+        r = await cli.get(f"{WA_SERVICE_URL}/wa/status/{user['id']}")
+    if r.status_code >= 400:
+        return {"status": "error", "qr": None}
+    return r.json()
+
+@api_router.post("/whatsapp/send")
+async def wa_send(payload: WhatsAppSendIn, user=Depends(get_current_user)):
+    async with httpx.AsyncClient(timeout=15) as cli:
+        r = await cli.post(f"{WA_SERVICE_URL}/wa/send", json={"user_id": user["id"], "to": payload.to, "message": payload.message})
+    if r.status_code >= 400:
+        raise HTTPException(400, r.text[:200])
+    return r.json()
+
+@api_router.post("/whatsapp/logout")
+async def wa_logout(user=Depends(get_current_user)):
+    async with httpx.AsyncClient(timeout=10) as cli:
+        await cli.post(f"{WA_SERVICE_URL}/wa/logout", json={"user_id": user["id"]})
+    return {"ok": True}
 
 # ============ APP ============
 app.include_router(api_router)

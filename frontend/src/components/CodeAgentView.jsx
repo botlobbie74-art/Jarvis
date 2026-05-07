@@ -8,6 +8,8 @@ export default function CodeAgentView() {
   const [projects, setProjects] = useState([]);
   const [active, setActive] = useState(null); // {project, files}
   const [activeFile, setActiveFile] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [pState, setPState] = useState(null);
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
   const [building, setBuilding] = useState(false);
@@ -32,8 +34,38 @@ export default function CodeAgentView() {
       const { data } = await api.get(`/projects/${id}`);
       setActive(data);
       setActiveFile(data.files?.[0] || null);
+      // load state + jobs
+      try {
+        const [s, j] = await Promise.all([api.get(`/projects/${id}/state`), api.get(`/projects/${id}/jobs`)]);
+        setPState(s.data); setJobs(j.data || []);
+      } catch (_) {}
     } catch (e) {
       toast({ title: 'Failed to open', variant: 'destructive' });
+    }
+  };
+
+  // Poll jobs every 2s while project is open
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(async () => {
+      try {
+        const [s, j] = await Promise.all([
+          api.get(`/projects/${active.project.id}/state`),
+          api.get(`/projects/${active.project.id}/jobs`),
+        ]);
+        setPState(s.data); setJobs(j.data || []);
+      } catch (_) {}
+    }, 2500);
+    return () => clearInterval(t);
+  }, [active?.project?.id]);
+
+  const enqueueJob = async (agentType, payload = {}) => {
+    if (!active) return;
+    try {
+      await api.post(`/projects/${active.project.id}/jobs`, { project_id: active.project.id, agent_type: agentType, payload });
+      toast({ title: `${agentType} job queued`, description: 'Running in background.' });
+    } catch (e) {
+      toast({ title: 'Failed to queue', variant: 'destructive' });
     }
   };
 
@@ -213,7 +245,14 @@ export default function CodeAgentView() {
             </ol>
           </div>
           <div className="flex-1 overflow-y-auto">
-            <div className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Files</div>
+            <div className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+              <span>Files</span>
+              <div className="flex gap-1">
+                <button onClick={() => enqueueJob('reviewer', { instruction: 'review generated files' })} title="Run reviewer" className="text-slate-400 hover:text-slate-900 text-[10px] uppercase">review</button>
+                <span className="text-slate-300">|</span>
+                <button onClick={() => enqueueJob('tester', { instruction: 'generate tests' })} title="Run tester" className="text-slate-400 hover:text-slate-900 text-[10px] uppercase">test</button>
+              </div>
+            </div>
             {(active.files || []).length === 0 && (
               <div className="px-4 py-3 text-[12px] text-slate-400">No files yet. Click Build.</div>
             )}
@@ -228,6 +267,24 @@ export default function CodeAgentView() {
                 <FileCode className="w-3.5 h-3.5 flex-shrink-0" />
                 <span className="truncate">{f.path}</span>
               </button>
+            ))}
+            {/* Activity feed */}
+            <div className="px-4 pt-4 pb-1 text-[11px] uppercase tracking-wider text-slate-400 font-semibold border-t border-slate-100 mt-2">
+              Activity {pState?.current_phase && <span className="ml-1 text-emerald-600 normal-case">· {pState.current_phase}</span>}
+            </div>
+            {jobs.length === 0 && (
+              <div className="px-4 py-2 text-[12px] text-slate-400">No jobs yet.</div>
+            )}
+            {jobs.slice(0, 12).map((j) => (
+              <div key={j.id} className="px-4 py-1.5 text-[11px] flex items-center gap-2">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                  j.status === 'done' ? 'bg-emerald-500' :
+                  j.status === 'processing' ? 'bg-amber-500 animate-pulse' :
+                  j.status === 'failed' ? 'bg-red-500' : 'bg-slate-300'
+                }`} />
+                <span className="font-medium text-slate-700 capitalize">{j.agent_type}</span>
+                <span className="text-slate-400 truncate flex-1">{j.status}</span>
+              </div>
             ))}
           </div>
         </div>
