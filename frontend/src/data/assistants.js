@@ -42,10 +42,19 @@ export const ASSISTANTS = [
 ];
 
 export const PLUGIN_ICONS = {
-  google: 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg',
-  google_search: 'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
-  youtube: 'https://upload.wikimedia.org/wikipedia/commons/0/09/YouTube_full-color_icon_%282017%29.svg',
-  github: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
-  discord: 'https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6a49cf127bf92de1e2_icon_clyde_blurple_RGB.svg',
-  whatsapp: 'https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg',
+  google: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/google.svg',
+  google_search: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/googlesearchconsole.svg',
+  youtube: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg',
+  github: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/github.svg',
+  discord: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/discord.svg',
+  whatsapp: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/whatsapp.svg',
+};
+
+export const PLUGIN_ACCENT = {
+  google: '#4285F4',
+  google_search: '#34A853',
+  youtube: '#FF0000',
+  github: '#181717',
+  discord: '#5865F2',
+  whatsapp: '#25D366',
 };

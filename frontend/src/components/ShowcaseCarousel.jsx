@@ -42,16 +42,16 @@ const TeamSlide = () => (
 
 const ConnectSlide = () => {
   const logos = [
-    { src: 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg', t: -130, l: 0 },
-    { src: 'https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg', t: -90, l: 150 },
-    { src: 'https://upload.wikimedia.org/wikipedia/commons/9/95/Instagram_logo_2022.svg', t: 0, l: -180 },
-    { src: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Notion_app_logo.png', t: 30, l: -200 },
-    { src: 'https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png', t: 70, l: -150 },
-    { src: 'https://upload.wikimedia.org/wikipedia/commons/1/1d/HubSpot_Logo.svg', t: 60, l: 200 },
-    { src: 'https://upload.wikimedia.org/wikipedia/commons/c/c9/Slack_Technologies_Logo.svg', t: 30, l: 220 },
-    { src: 'https://upload.wikimedia.org/wikipedia/commons/d/da/Google_Drive_logo.png', t: 160, l: -120 },
-    { src: 'https://upload.wikimedia.org/wikipedia/commons/5/57/X_logo_2023_%28white%29.png', t: 170, l: 30 },
-    { src: 'https://upload.wikimedia.org/wikipedia/commons/e/e3/Google_Photos_icon_%282020%29.svg', t: 160, l: 180 },
+    { src: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/gmail.svg', t: -130, l: 0, color: '#EA4335' },
+    { src: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/googlecalendar.svg', t: -90, l: 150, color: '#4285F4' },
+    { src: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/instagram.svg', t: 0, l: -180, color: '#E4405F' },
+    { src: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/notion.svg', t: 30, l: -200, color: '#000000' },
+    { src: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/linkedin.svg', t: 70, l: -150, color: '#0A66C2' },
+    { src: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/clickup.svg', t: 60, l: 200, color: '#7B68EE' },
+    { src: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/slack.svg', t: 30, l: 220, color: '#4A154B' },
+    { src: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/googledrive.svg', t: 160, l: -120, color: '#1FA463' },
+    { src: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/x.svg', t: 170, l: 30, color: '#000000' },
+    { src: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/dropbox.svg', t: 160, l: 180, color: '#0061FF' },
   ];
   return (
     <div className="relative w-full h-full flex items-center justify-center">
@@ -67,10 +67,10 @@ const ConnectSlide = () => {
       {logos.map((l, i) => (
         <div
           key={i}
-          className="absolute w-12 h-12 bg-white rounded-xl shadow-lg flex items-center justify-center p-2"
+          className="absolute w-12 h-12 bg-white rounded-xl shadow-lg flex items-center justify-center p-2.5"
           style={{ transform: `translate(${l.l}px, ${l.t}px)` }}
         >
-          <img src={l.src} alt="" className="w-full h-full object-contain" />
+          <img src={l.src} alt="" className="w-full h-full object-contain" style={{ filter: 'brightness(0)' }} />
         </div>
       ))}
     </div>

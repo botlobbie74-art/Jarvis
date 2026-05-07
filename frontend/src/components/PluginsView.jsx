@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
-import { PLUGIN_ICONS } from '../data/assistants';
+import { PLUGIN_ICONS, PLUGIN_ACCENT } from '../data/assistants';
 import { Loader2, Check, Plug } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
@@ -55,9 +55,20 @@ export default function PluginsView() {
             {plugins.map((p) => (
               <div key={p.id} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow">
                 <div className="flex items-start gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-2">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center p-2.5"
+                    style={{ background: (PLUGIN_ACCENT[p.id] || '#0f172a') + '14' }}
+                  >
                     {PLUGIN_ICONS[p.id] ? (
-                      <img src={PLUGIN_ICONS[p.id]} alt="" className="w-full h-full object-contain" />
+                      <img
+                        src={PLUGIN_ICONS[p.id]}
+                        alt=""
+                        className="w-full h-full object-contain"
+                        style={{
+                          filter: `brightness(0) saturate(100%) invert(0)`,
+                        }}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
                     ) : (
                       <Plug className="w-5 h-5 text-slate-500" />
                     )}
