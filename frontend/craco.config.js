@@ -1,5 +1,6 @@
 // craco.config.js
 const path = require("path");
+const webpack = require("webpack");
 require("dotenv").config();
 
 // Check if we're in development/preview mode (not production build)
@@ -55,6 +56,16 @@ let webpackConfig = {
       if (config.enableHealthCheck && healthPluginInstance) {
         webpackConfig.plugins.push(healthPluginInstance);
       }
+
+      // Bridge for non-prefixed environment variables (Vercel compatibility)
+      webpackConfig.plugins.push(
+        new webpack.DefinePlugin({
+          "process.env.REACT_APP_SUPABASE_URL": JSON.stringify(process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL),
+          "process.env.REACT_APP_SUPABASE_ANON_KEY": JSON.stringify(process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY),
+          "process.env.REACT_APP_BACKEND_URL": JSON.stringify(process.env.BACKEND_URL || process.env.REACT_APP_BACKEND_URL),
+        })
+      );
+
       return webpackConfig;
     },
   },
