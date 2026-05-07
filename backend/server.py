@@ -167,7 +167,13 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
                 "content": payload.message, "assistant_id": aid}
     sb.table("jarvis_chat_messages").insert(user_msg).execute()
 
+    # Use custom persona if defined, else default
     sysm = ASSISTANT_PERSONAS[aid]
+    try:
+        custom = sb.table("jarvis_personas").select("*").eq("user_id", user["id"]).eq("assistant_id", aid).execute()
+        if custom.data and custom.data[0].get("system_prompt"):
+            sysm = custom.data[0]["system_prompt"]
+    except Exception: pass
     plugs = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("status", "connected").execute()
     if plugs.data:
         names = ", ".join(p["plugin_name"] for p in plugs.data)
@@ -719,6 +725,48 @@ async def webhook(request: Request):
                 "current_period_end": datetime.fromtimestamp(obj["current_period_end"], tz=timezone.utc).isoformat() if obj.get("current_period_end") else None,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }).eq("user_id", uid).execute()
+    return {"ok": True}
+
+# ============ PERSONAS (custom system prompts) ============
+class PersonaIn(BaseModel):
+    assistant_id: str
+    system_prompt: str
+    custom_name: Optional[str] = None
+
+@api_router.get("/personas")
+async def list_personas(user=Depends(get_current_user)):
+    rows = sb.table("jarvis_personas").select("*").eq("user_id", user["id"]).execute().data
+    by_aid = {r["assistant_id"]: r for r in rows}
+    out = []
+    for aid, default in ASSISTANT_PERSONAS.items():
+        ex = by_aid.get(aid)
+        out.append({
+            "assistant_id": aid,
+            "default_prompt": default,
+            "system_prompt": ex["system_prompt"] if ex else "",
+            "custom_name": ex.get("custom_name") if ex else None,
+            "is_custom": bool(ex and ex.get("system_prompt")),
+        })
+    return out
+
+@api_router.put("/personas")
+async def update_persona(payload: PersonaIn, user=Depends(get_current_user)):
+    if payload.assistant_id not in ASSISTANT_PERSONAS:
+        raise HTTPException(400, "Invalid assistant_id")
+    doc = {"user_id": user["id"], "assistant_id": payload.assistant_id,
+           "system_prompt": payload.system_prompt, "custom_name": payload.custom_name,
+           "updated_at": datetime.now(timezone.utc).isoformat()}
+    existing = sb.table("jarvis_personas").select("id").eq("user_id", user["id"]).eq("assistant_id", payload.assistant_id).execute()
+    if existing.data:
+        sb.table("jarvis_personas").update(doc).eq("user_id", user["id"]).eq("assistant_id", payload.assistant_id).execute()
+    else:
+        doc["id"] = str(uuid.uuid4())
+        sb.table("jarvis_personas").insert(doc).execute()
+    return {"ok": True}
+
+@api_router.delete("/personas/{assistant_id}")
+async def reset_persona(assistant_id: str, user=Depends(get_current_user)):
+    sb.table("jarvis_personas").delete().eq("user_id", user["id"]).eq("assistant_id", assistant_id).execute()
     return {"ok": True}
 
 # ============ APP ============
