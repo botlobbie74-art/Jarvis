@@ -243,6 +243,8 @@ DEFAULT_PLUGINS = [
     {"id": "youtube", "name": "YouTube", "description": "Search and manage videos", "category": "media"},
     {"id": "github", "name": "GitHub", "description": "Repos, issues, pull requests", "category": "developer"},
     {"id": "telegram", "name": "Telegram", "description": "Message Jarvis from Telegram", "category": "messaging"},
+    {"id": "slack", "name": "Slack", "description": "Send messages and notifications to Slack channels", "category": "messaging"},
+    {"id": "notion", "name": "Notion", "description": "Read and write Notion pages and databases", "category": "productivity"},
 ]
 
 @api_router.get("/plugins")
@@ -294,20 +296,35 @@ TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME', 'JarvisAgentBot'
 # In-memory link codes (short-lived, production should use Redis/DB)
 _telegram_link_codes: Dict[str, str] = {}  # code -> user_id
 
-PLAN_SYSTEM = """You are Jarvis, an autonomous senior software architect AND code execution agent. You have FULL access to:
+PLAN_SYSTEM = """You are Jarvis, an autonomous senior software architect AND code execution agent running inside a full IDE environment.
 
-CAPABILITIES YOU CAN USE:
-- Generate React + Tailwind frontend code (production-ready)
-- Generate FastAPI Python backend code (production-ready)
-- Create Supabase Postgres tables with proper DDL
-- Save generated files to the IDE (Monaco editor) in real-time
-- Push complete project to a fresh GitHub repository
-- Use multi-LLM router (Gemini Flash, Mistral Codestral, Groq Llama, Cerebras) — FREE
-- Real Google OAuth (Sheets, Docs, Drive, Calendar, YouTube)
-- Web search via plugins
-- Stripe billing integration
-- Install Python packages via pip and Node packages via npm automatically
-- Run terminal commands to set up, test, and validate the project
+YOUR AVAILABLE CAPABILITIES (use them):
+TERMINAL ACCESS:
+- Run `pip install <package>` to install any Python library needed
+- Run `npm install <package>` to install any Node/React package needed
+- Run `python <script>` to execute scripts, run migrations, seed data
+- Run `uvicorn`, `pytest`, `eslint`, `prettier` — any CLI tool
+- Execute git commands, create branches, push to GitHub
+
+CODE GENERATION:
+- Write production-ready React + Tailwind + shadcn/ui frontend
+- Write production-ready FastAPI + Python backend with proper async patterns
+- Create Supabase Postgres tables with full DDL (migrations included)
+- Generate full authentication flows (JWT, OAuth, sessions)
+- Integrate Stripe billing, webhooks, customer portal
+- Add real-time features via Supabase Realtime / WebSockets
+- Generate comprehensive tests (pytest for backend, vitest for frontend)
+- Push the complete project to a new GitHub repository automatically
+
+INTEGRATIONS AVAILABLE:
+- Google Workspace (Sheets, Docs, Drive, Calendar, Gmail) via OAuth
+- GitHub API (repos, issues, PRs, gists)
+- Slack (send messages, read channels)
+- Notion (read/write pages and databases)
+- Telegram Bot (send/receive messages)
+- YouTube Data API
+- Stripe (payments, subscriptions, invoices)
+- Web search (via Serper / Google Search)
 
 Return STRICT JSON ONLY (no prose, no markdown fences) with this exact shape:
 {
@@ -321,12 +338,13 @@ Return STRICT JSON ONLY (no prose, no markdown fences) with this exact shape:
 
 !!! CRITICAL RULES !!!
 1. NEVER use placeholder text like 'Hello World', 'welcome_message', 'test@example.com', or 'settings table'
-2. NEVER generate generic boilerplate unrelated to the user's request
-3. EVERY table name, column, file, and step must be 100% specific to what the user asked for
-4. Steps must be 8-15. Files must be 8-15 covering full app (auth, UI, API, DB, styling)
-5. The summary must describe the user's EXACT requested app"""
+2. NEVER generate generic boilerplate — every line of code must serve the user's EXACT described app
+3. EVERY table name, column, file, and step must be specific to this request
+4. Steps must be 8-15. Files must be 8-15 covering full app (auth, UI, API, DB, styling, tests)
+5. The summary must describe the user's EXACT requested app
+6. Include a terminal_commands array of setup commands if packages need to be installed"""
 
-CODE_SYSTEM = """You are Jarvis, an autonomous senior full-stack engineer. Given a project plan and a target file path, output ONLY the file content (no markdown fences, no commentary). Production-ready code, complete and runnable."""
+CODE_SYSTEM = """You are Jarvis, an autonomous senior full-stack engineer with full terminal access. Given a project plan and a target file path, output ONLY the complete file content (no markdown fences, no commentary). Code must be production-ready, complete, runnable, and specific to the project described — never generic boilerplate. Import real packages, use real API patterns, real database queries. If a package needs to be installed, it will be — you can reference it freely."""
 
 @api_router.get("/projects")
 async def list_projects(user=Depends(get_current_user)):
@@ -749,6 +767,74 @@ async def telegram_webhook(payload: dict):
     sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "assistant", "content": reply, "assistant_id": "jarvis"}).execute()
     await _tg_send(chat_id, reply)
     return {"ok": True}
+
+# ============ SLACK PLUGIN ============
+SLACK_BOT_TOKEN = os.environ.get('SLACK_BOT_TOKEN', '')
+
+@api_router.post("/plugins/slack/connect")
+async def slack_connect(payload: dict, user=Depends(get_current_user)):
+    """Store Slack bot token for this user."""
+    token = (payload.get("bot_token") or "").strip()
+    if not token:
+        raise HTTPException(400, "bot_token required")
+    meta = {"slack_bot_token": token}
+    existing = sb.table("jarvis_plugins").select("id").eq("user_id", user["id"]).eq("plugin_id", "slack").execute()
+    doc = {"user_id": user["id"], "plugin_id": "slack", "plugin_name": "Slack",
+           "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta}
+    if existing.data:
+        sb.table("jarvis_plugins").update(doc).eq("user_id", user["id"]).eq("plugin_id", "slack").execute()
+    else:
+        doc["id"] = str(uuid.uuid4())
+        sb.table("jarvis_plugins").insert(doc).execute()
+    return {"ok": True}
+
+@api_router.post("/plugins/slack/send")
+async def slack_send(payload: dict, user=Depends(get_current_user)):
+    """Send a message to a Slack channel on behalf of the user."""
+    rows = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("plugin_id", "slack").execute().data
+    if not rows:
+        raise HTTPException(400, "Slack not connected")
+    token = (rows[0].get("metadata") or {}).get("slack_bot_token", SLACK_BOT_TOKEN)
+    channel = payload.get("channel", "#general")
+    text = payload.get("text", "")
+    async with httpx.AsyncClient(timeout=10) as cli:
+        r = await cli.post("https://slack.com/api/chat.postMessage",
+                           headers={"Authorization": f"Bearer {token}"},
+                           json={"channel": channel, "text": text})
+    return r.json()
+
+# ============ NOTION PLUGIN ============
+NOTION_API_KEY = os.environ.get('NOTION_API_KEY', '')
+
+@api_router.post("/plugins/notion/connect")
+async def notion_connect(payload: dict, user=Depends(get_current_user)):
+    """Store Notion integration token for this user."""
+    token = (payload.get("api_key") or "").strip()
+    if not token:
+        raise HTTPException(400, "api_key required")
+    meta = {"notion_api_key": token}
+    existing = sb.table("jarvis_plugins").select("id").eq("user_id", user["id"]).eq("plugin_id", "notion").execute()
+    doc = {"user_id": user["id"], "plugin_id": "notion", "plugin_name": "Notion",
+           "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta}
+    if existing.data:
+        sb.table("jarvis_plugins").update(doc).eq("user_id", user["id"]).eq("plugin_id", "notion").execute()
+    else:
+        doc["id"] = str(uuid.uuid4())
+        sb.table("jarvis_plugins").insert(doc).execute()
+    return {"ok": True}
+
+@api_router.post("/plugins/notion/search")
+async def notion_search(payload: dict, user=Depends(get_current_user)):
+    rows = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("plugin_id", "notion").execute().data
+    if not rows:
+        raise HTTPException(400, "Notion not connected")
+    token = (rows[0].get("metadata") or {}).get("notion_api_key", NOTION_API_KEY)
+    query = payload.get("query", "")
+    async with httpx.AsyncClient(timeout=10) as cli:
+        r = await cli.post("https://api.notion.com/v1/search",
+                           headers={"Authorization": f"Bearer {token}", "Notion-Version": "2022-06-28"},
+                           json={"query": query, "page_size": 10})
+    return r.json()
 
 # ============ BILLING (STRIPE) ============
 PLAN_LIMITS = {

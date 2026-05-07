@@ -26,7 +26,7 @@ export default function ChatView({ sessionId, assistantId, onAssistantChange, on
   const { toast } = useToast();
 
   const assistant = ASSISTANTS.find((a) => a.id === assistantId) || ASSISTANTS[0];
-  const isDonna = assistantId === DONNA_ID;
+  const isDonna = true; // file upload enabled for all assistants
 
   useEffect(() => {
     if (!sessionId) { setMessages([]); return; }
