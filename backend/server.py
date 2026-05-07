@@ -12,6 +12,7 @@ from passlib.context import CryptContext
 from supabase import create_client, Client
 from github import Github, GithubException
 from llm_router import llm_call as router_call
+import stripe
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -19,8 +20,15 @@ load_dotenv(ROOT_DIR / '.env')
 JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me')
 JWT_ALG = 'HS256'
 JWT_EXP_DAYS = 7
-EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')  # legacy, not used anymore
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')  # legacy, unused
 WA_SERVICE_URL = os.environ.get('WA_SERVICE_URL', 'http://localhost:8002')
+APP_PUBLIC_URL = os.environ.get('APP_PUBLIC_URL', 'https://jarvisagent.app')
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+STRIPE_PRICE_STARTER = os.environ.get('STRIPE_PRICE_STARTER', '')
+STRIPE_PRICE_PRO = os.environ.get('STRIPE_PRICE_PRO', '')
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
@@ -151,6 +159,7 @@ async def delete_session(session_id: str, user=Depends(get_current_user)):
 
 @api_router.post("/chat/send")
 async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
+    _check_quota(user["id"], "chat")
     sess = sb.table("jarvis_chat_sessions").select("*").eq("id", payload.session_id).eq("user_id", user["id"]).limit(1).execute()
     if not sess.data: raise HTTPException(404, "Session not found")
     aid = payload.assistant_id if payload.assistant_id in ASSISTANT_PERSONAS else "jarvis"
@@ -176,6 +185,7 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
     asst = {"id": str(uuid.uuid4()), "session_id": payload.session_id, "role": "assistant",
             "content": reply, "assistant_id": aid}
     sb.table("jarvis_chat_messages").insert(asst).execute()
+    _bump_usage(user["id"], "chat")
     title = sess.data[0].get("title") or "New chat"
     if title == "New chat": title = payload.message[:60]
     sb.table("jarvis_chat_sessions").update({"updated_at": datetime.now(timezone.utc).isoformat(), "title": title, "assistant_id": aid}).eq("id", payload.session_id).execute()
@@ -279,6 +289,7 @@ async def plan_project(payload: ProjectCreate, user=Depends(get_current_user)):
 
 @api_router.post("/projects/{pid}/build")
 async def build_project(pid: str, user=Depends(get_current_user)):
+    _check_quota(user["id"], "build")
     proj = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).single().execute().data
     if not proj: raise HTTPException(404, "Not found")
     plan = proj["plan"] or {}
@@ -307,6 +318,7 @@ async def build_project(pid: str, user=Depends(get_current_user)):
         except Exception as e:
             log.exception("file gen err %s", path)
     sb.table("jarvis_projects").update({"status": "ready", "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", pid).execute()
+    _bump_usage(user["id"], "build")
     # Update project state
     try:
         sb.table("jarvis_project_state").upsert({
@@ -574,6 +586,128 @@ async def wa_send(payload: WhatsAppSendIn, user=Depends(get_current_user)):
 async def wa_logout(user=Depends(get_current_user)):
     async with httpx.AsyncClient(timeout=10) as cli:
         await cli.post(f"{WA_SERVICE_URL}/wa/logout", json={"user_id": user["id"]})
+    return {"ok": True}
+
+# ============ BILLING (STRIPE) ============
+PLAN_LIMITS = {
+    "free":    {"builds": 5,    "chat_messages": 100,  "plugins": ["google", "github", "google_search"]},
+    "starter": {"builds": 50,   "chat_messages": -1,   "plugins": "all"},
+    "pro":     {"builds": -1,   "chat_messages": -1,   "plugins": "all"},
+}
+
+def _user_plan(uid: str) -> dict:
+    res = sb.table("jarvis_subscriptions").select("*").eq("user_id", uid).execute()
+    if res.data and res.data[0].get("status") in ("active", "trialing"):
+        return res.data[0]
+    return {"plan": "free", "status": "active"}
+
+def _period_key(): return datetime.now(timezone.utc).strftime("%Y-%m")
+
+def _bump_usage(uid: str, kind: str, by: int = 1):
+    p = _period_key()
+    existing = sb.table("jarvis_usage_counters").select("*").eq("user_id", uid).eq("period", p).execute()
+    field = "builds_used" if kind == "build" else "chat_messages_used"
+    if existing.data:
+        cur = existing.data[0].get(field, 0) or 0
+        sb.table("jarvis_usage_counters").update({field: cur + by}).eq("user_id", uid).eq("period", p).execute()
+    else:
+        sb.table("jarvis_usage_counters").insert({"user_id": uid, "period": p, field: by}).execute()
+
+def _check_quota(uid: str, kind: str):
+    plan = _user_plan(uid).get("plan", "free")
+    limit = PLAN_LIMITS[plan]["builds" if kind == "build" else "chat_messages"]
+    if limit < 0: return  # unlimited
+    p = _period_key()
+    row = sb.table("jarvis_usage_counters").select("*").eq("user_id", uid).eq("period", p).execute()
+    used = 0
+    if row.data:
+        used = row.data[0].get("builds_used" if kind == "build" else "chat_messages_used", 0) or 0
+    if used >= limit:
+        raise HTTPException(402, f"Quota exceeded for plan '{plan}'. Upgrade to continue.")
+
+@api_router.get("/billing/plan")
+async def get_plan(user=Depends(get_current_user)):
+    sub = _user_plan(user["id"])
+    p = _period_key()
+    usage_row = sb.table("jarvis_usage_counters").select("*").eq("user_id", user["id"]).eq("period", p).execute()
+    usage = usage_row.data[0] if usage_row.data else {"builds_used": 0, "chat_messages_used": 0}
+    return {"plan": sub.get("plan"), "status": sub.get("status"), "current_period_end": sub.get("current_period_end"),
+            "limits": PLAN_LIMITS[sub.get("plan", "free")], "usage": {"builds_used": usage.get("builds_used", 0),
+                                                                       "chat_messages_used": usage.get("chat_messages_used", 0)}}
+
+class CheckoutIn(BaseModel):
+    plan: str  # starter | pro
+
+@api_router.post("/billing/checkout")
+async def checkout(payload: CheckoutIn, user=Depends(get_current_user)):
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(400, "Stripe not configured yet")
+    price = STRIPE_PRICE_STARTER if payload.plan == "starter" else STRIPE_PRICE_PRO if payload.plan == "pro" else None
+    if not price:
+        raise HTTPException(400, "Invalid plan")
+    try:
+        sub = sb.table("jarvis_subscriptions").select("*").eq("user_id", user["id"]).execute()
+        customer_id = sub.data[0].get("stripe_customer_id") if sub.data else None
+        if not customer_id:
+            cust = stripe.Customer.create(email=user["email"], name=user["name"], metadata={"user_id": user["id"]})
+            customer_id = cust.id
+            sb.table("jarvis_subscriptions").upsert({"user_id": user["id"], "stripe_customer_id": customer_id, "plan": "free"}).execute()
+        session = stripe.checkout.Session.create(
+            customer=customer_id, mode="subscription",
+            line_items=[{"price": price, "quantity": 1}],
+            success_url=f"{APP_PUBLIC_URL}/app?upgraded=true",
+            cancel_url=f"{APP_PUBLIC_URL}/pricing",
+            metadata={"user_id": user["id"], "plan": payload.plan},
+        )
+        return {"url": session.url}
+    except Exception as e:
+        raise HTTPException(500, str(e)[:300])
+
+@api_router.post("/billing/portal")
+async def portal(user=Depends(get_current_user)):
+    if not STRIPE_SECRET_KEY: raise HTTPException(400, "Stripe not configured")
+    sub = sb.table("jarvis_subscriptions").select("*").eq("user_id", user["id"]).execute()
+    if not sub.data or not sub.data[0].get("stripe_customer_id"):
+        raise HTTPException(400, "No subscription")
+    s = stripe.billing_portal.Session.create(customer=sub.data[0]["stripe_customer_id"], return_url=f"{APP_PUBLIC_URL}/app")
+    return {"url": s.url}
+
+from fastapi import Request
+
+@api_router.post("/billing/webhook")
+async def webhook(request: Request):
+    if not STRIPE_WEBHOOK_SECRET: return {"ok": True, "skipped": True}
+    payload_b = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        evt = stripe.Webhook.construct_event(payload_b, sig, STRIPE_WEBHOOK_SECRET)
+    except Exception as e:
+        raise HTTPException(400, f"Bad signature: {str(e)[:120]}")
+    t = evt["type"]
+    obj = evt["data"]["object"]
+    if t == "checkout.session.completed":
+        meta = obj.get("metadata", {}) or {}
+        uid = meta.get("user_id"); plan = meta.get("plan", "starter")
+        sub_id = obj.get("subscription")
+        if uid and sub_id:
+            sub = stripe.Subscription.retrieve(sub_id)
+            sb.table("jarvis_subscriptions").upsert({
+                "user_id": uid, "stripe_customer_id": obj.get("customer"),
+                "stripe_subscription_id": sub_id, "plan": plan, "status": sub["status"],
+                "current_period_end": datetime.fromtimestamp(sub["current_period_end"], tz=timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).execute()
+    elif t in ("customer.subscription.updated", "customer.subscription.deleted"):
+        cust = obj.get("customer")
+        row = sb.table("jarvis_subscriptions").select("*").eq("stripe_customer_id", cust).execute()
+        if row.data:
+            uid = row.data[0]["user_id"]
+            new_plan = "free" if t == "customer.subscription.deleted" else row.data[0].get("plan", "starter")
+            sb.table("jarvis_subscriptions").update({
+                "plan": new_plan, "status": obj.get("status", "canceled"),
+                "current_period_end": datetime.fromtimestamp(obj["current_period_end"], tz=timezone.utc).isoformat() if obj.get("current_period_end") else None,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("user_id", uid).execute()
     return {"ok": True}
 
 # ============ APP ============

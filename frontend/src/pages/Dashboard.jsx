@@ -4,13 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import { ASSISTANTS } from '../data/assistants';
 import { WingmanFace } from '../components/WingmanLogo';
-import { Plus, MessageSquare, Puzzle, ListChecks, LogOut, Send, Loader2, Trash2, Sparkles, Hammer } from 'lucide-react';
+import { Plus, MessageSquare, Puzzle, ListChecks, LogOut, Send, Loader2, Trash2, Sparkles, Hammer, CreditCard } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import PluginsView from '../components/PluginsView';
 import TasksView from '../components/TasksView';
 import ChatView from '../components/ChatView';
 import CodeAgentView from '../components/CodeAgentView';
+import BillingView from '../components/BillingView';
 
 export default function Dashboard() {
   const { user, logout, loading } = useAuth();
@@ -110,6 +111,14 @@ export default function Dashboard() {
           >
             <ListChecks className="w-4 h-4" /> Background tasks
           </button>
+          <button
+            onClick={() => setView('billing')}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[14px] transition-colors ${
+              view === 'billing' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" /> Billing
+          </button>
         </div>
 
         <div className="px-3 pb-2 flex items-center justify-between">
@@ -185,6 +194,7 @@ export default function Dashboard() {
         {view === 'plugins' && <PluginsView />}
         {view === 'tasks' && <TasksView />}
         {view === 'builder' && <CodeAgentView />}
+        {view === 'billing' && <BillingView />}
       </main>
     </div>
   );
