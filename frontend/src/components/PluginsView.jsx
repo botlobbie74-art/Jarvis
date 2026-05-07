@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { PLUGIN_ICONS, PLUGIN_ACCENT } from '../data/assistants';
 import { Loader2, Check, Plug, X as XIcon, ExternalLink, Copy } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { useTheme } from '../context/ThemeContext';
 
 export default function PluginsView() {
   const [plugins, setPlugins] = useState([]);
@@ -10,6 +11,8 @@ export default function PluginsView() {
   const [pendingId, setPendingId] = useState(null);
   const [modal, setModal] = useState(null); // { type: 'telegram', ... }
   const { toast } = useToast();
+  const { theme } = useTheme();
+  const dark = theme === 'dark';
 
   const load = async () => {
     setLoading(true);
@@ -75,69 +78,71 @@ export default function PluginsView() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#0a0a0c]">
+    <div className={`flex-1 overflow-y-auto ${dark ? 'bg-[#0a0a0c]' : 'bg-white'}`}>
       <div className="max-w-5xl mx-auto px-8 py-10">
         <div className="flex items-center gap-3 mb-1">
-          <Plug className="w-6 h-6 text-white" />
-          <h1 className="text-[28px] font-semibold text-white">Plugins</h1>
+          <Plug className={`w-6 h-6 ${dark ? 'text-white' : 'text-slate-900'}`} />
+          <h1 className={`text-[28px] font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Plugins</h1>
         </div>
-        <p className="text-white/50 mb-8">Connect the apps Jarvis should work with.</p>
+        <p className={`${dark ? 'text-white/50' : 'text-slate-500'} mb-8`}>Connect the apps Jarvis should work with.</p>
 
         {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
+          <div className="flex justify-center py-20"><Loader2 className={`w-6 h-6 animate-spin ${dark ? 'text-white/30' : 'text-slate-200'}`} /></div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {plugins.map((p) => (
-              <div key={p.id} className="bg-white/5 rounded-2xl border border-white/10 p-5 hover:bg-white/[0.07] transition-all">
-                <div className="flex items-start gap-3 mb-4">
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center p-2.5"
-                    style={{ background: (PLUGIN_ACCENT[p.id] || '#ffffff') + '20' }}
-                  >
-                    {PLUGIN_ICONS[p.id] ? (
-                      <img
-                        src={PLUGIN_ICONS[p.id]}
-                        alt=""
-                        className="w-full h-full object-contain"
-                        style={{ filter: 'brightness(0) invert(1)' }}
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    ) : (
-                      <Plug className="w-5 h-5 text-white/50" />
+              <div key={p.id} className={`rounded-2xl border transition-all ${dark ? 'bg-white/5 border-white/10 hover:bg-white/[0.07]' : 'bg-slate-50 border-slate-200 hover:shadow-md'}`}>
+                <div className="p-5">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center p-2.5"
+                      style={{ background: (PLUGIN_ACCENT[p.id] || '#ffffff') + '20' }}
+                    >
+                      {PLUGIN_ICONS[p.id] ? (
+                        <img
+                          src={PLUGIN_ICONS[p.id]}
+                          alt=""
+                          className="w-full h-full object-contain"
+                          style={{ filter: dark ? 'brightness(0) invert(1)' : 'none' }}
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <Plug className={`w-5 h-5 ${dark ? 'text-white/50' : 'text-slate-400'}`} />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className={`font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>{p.name}</div>
+                      <div className={`text-[12px] ${dark ? 'text-white/50' : 'text-slate-500'}`}>{p.description}</div>
+                    </div>
+                    {p.status === 'connected' && (
+                      <span className="flex items-center gap-1 text-[11px] text-emerald-500 font-medium">
+                        <Check className="w-3 h-3" /> Active
+                      </span>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-white">{p.name}</div>
-                    <div className="text-[12px] text-white/50">{p.description}</div>
-                  </div>
-                  {p.status === 'connected' && (
-                    <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
-                      <Check className="w-3 h-3" /> Active
-                    </span>
+
+                  {p.id === 'telegram' && p.status !== 'connected' && (
+                    <div className={`mb-3 px-2 py-1.5 rounded-lg border ${dark ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400' : 'bg-cyan-50 border-cyan-100 text-cyan-600'}`}>
+                      <p className="text-[11px]">
+                        💬 Message Jarvis directly from Telegram
+                      </p>
+                    </div>
                   )}
+
+                  <button
+                    onClick={() => toggle(p)}
+                    disabled={pendingId === p.id}
+                    className={`w-full h-10 rounded-lg text-[13px] font-medium transition-colors disabled:opacity-60 ${
+                      p.status === 'connected'
+                        ? dark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                        : dark ? 'bg-white text-slate-900 hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    {pendingId === p.id ? (
+                      <span className="flex items-center justify-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Working...</span>
+                    ) : p.status === 'connected' ? 'Disconnect' : 'Connect'}
+                  </button>
                 </div>
-
-                {p.id === 'telegram' && p.status !== 'connected' && (
-                  <div className="mb-3 px-2 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                    <p className="text-[11px] text-cyan-400">
-                      💬 Message Jarvis directly from Telegram
-                    </p>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => toggle(p)}
-                  disabled={pendingId === p.id}
-                  className={`w-full h-10 rounded-lg text-[13px] font-medium transition-colors disabled:opacity-60 ${
-                    p.status === 'connected'
-                      ? 'bg-white/10 hover:bg-white/15 text-white'
-                      : 'bg-white text-slate-900 hover:bg-white/90'
-                  }`}
-                >
-                  {pendingId === p.id ? (
-                    <span className="flex items-center justify-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Working...</span>
-                  ) : p.status === 'connected' ? 'Disconnect' : 'Connect'}
-                </button>
               </div>
             ))}
           </div>
@@ -146,58 +151,58 @@ export default function PluginsView() {
 
       {/* Telegram Connect Modal */}
       {modal?.type === 'telegram' && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111114] border border-white/10 rounded-2xl p-6 max-w-md w-full">
+        <div className={`fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4 ${dark ? 'bg-black/70' : 'bg-slate-900/40'}`}>
+          <div className={`border rounded-2xl p-6 max-w-md w-full ${dark ? 'bg-[#111114] border-white/10' : 'bg-white border-slate-200 shadow-2xl'}`}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-[18px] font-semibold text-white">Connect Telegram</h3>
-              <button onClick={() => setModal(null)} className="text-white/40 hover:text-white">
+              <h3 className={`text-[18px] font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Connect Telegram</h3>
+              <button onClick={() => setModal(null)} className={`${dark ? 'text-white/40 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>
                 <XIcon className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-[#26A5E4]/10 border border-[#26A5E4]/20">
+              <div className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? 'bg-[#26A5E4]/10 border-[#26A5E4]/20' : 'bg-sky-50 border-sky-100'}`}>
                 <div className="w-8 h-8 rounded-full bg-[#26A5E4] flex items-center justify-center text-white font-bold text-sm">1</div>
                 <div>
-                  <div className="text-white text-[13px] font-medium">Open Jarvis Bot on Telegram</div>
+                  <div className={`text-[13px] font-medium ${dark ? 'text-white' : 'text-slate-900'}`}>Open Jarvis Bot on Telegram</div>
                   <a
                     href={`https://t.me/${modal.botUsername}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[#26A5E4] text-[12px] flex items-center gap-1 hover:underline"
+                    className="text-[#26A5E4] text-[12px] flex items-center gap-1 hover:underline font-medium"
                   >
                     @{modal.botUsername} <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-bold text-sm">2</div>
+              <div className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                <div className={`w-8 h-8 rounded-full font-bold text-sm flex items-center justify-center ${dark ? 'bg-white/10 text-white' : 'bg-slate-200 text-slate-600'}`}>2</div>
                 <div className="flex-1">
-                  <div className="text-white text-[13px] font-medium mb-1">Send this code to the bot</div>
+                  <div className={`text-[13px] font-medium mb-1 ${dark ? 'text-white' : 'text-slate-900'}`}>Send this code to the bot</div>
                   <div className="flex items-center gap-2">
-                    <code className="bg-black/40 text-cyan-400 px-3 py-1.5 rounded-lg text-[15px] font-mono tracking-widest">
+                    <code className={`px-3 py-1.5 rounded-lg text-[15px] font-mono tracking-widest ${dark ? 'bg-black/40 text-cyan-400' : 'bg-white border border-slate-200 text-cyan-600'}`}>
                       {modal.code}
                     </code>
                     <button
                       onClick={() => copyToClipboard(modal.code)}
-                      className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center"
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${dark ? 'bg-white/10 hover:bg-white/20 text-white/60' : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-500'}`}
                     >
-                      <Copy className="w-3.5 h-3.5 text-white/60" />
+                      <Copy className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-bold text-sm">3</div>
-                <div className="text-white/60 text-[13px]">
+              <div className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? 'bg-white/5 border-white/10 text-white/60' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                <div className={`w-8 h-8 rounded-full font-bold text-sm flex items-center justify-center ${dark ? 'bg-white/10' : 'bg-slate-200'}`}>3</div>
+                <div className="text-[13px]">
                   Waiting for verification… <Loader2 className="w-3.5 h-3.5 animate-spin inline ml-1" />
                 </div>
               </div>
             </div>
 
-            <p className="text-[11px] text-white/30 mt-4 text-center">
+            <p className={`text-[11px] mt-4 text-center ${dark ? 'text-white/30' : 'text-slate-400'}`}>
               After connecting, you can message Jarvis any time from Telegram.
             </p>
           </div>
@@ -206,3 +211,4 @@ export default function PluginsView() {
     </div>
   );
 }
+

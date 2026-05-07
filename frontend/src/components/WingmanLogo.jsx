@@ -20,9 +20,9 @@ export const WingmanFace = ({ size = 80 }) => (
   </div>
 );
 
-export const WingmanWordmark = () => (
+export const WingmanWordmark = ({ dark = false }) => (
   <div className="flex items-baseline gap-2 select-none">
-    <span className="text-[16px] font-bold tracking-tight text-slate-900">Jarvis</span>
-    <span className="text-[12px] text-slate-500">Autonomous AI</span>
+    <span className={`text-[16px] font-bold tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`}>Jarvis</span>
+    <span className={`text-[12px] ${dark ? 'text-white/40' : 'text-slate-500'}`}>Autonomous AI</span>
   </div>
 );
