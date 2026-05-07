@@ -1,32 +1,40 @@
 import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
 import Editor from '@monaco-editor/react';
-import { Loader2, Plus, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Check, Hammer, Rocket, FilePlus, FilePenLine } from 'lucide-react';
+import { Loader2, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Hammer, Rocket, FilePlus, FilePenLine, Layers, Smartphone, Globe, Lightbulb, Paperclip, ArrowUp, Sun, Moon } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { useTheme } from '../context/ThemeContext';
+
+const MODES = [
+  { id: 'fullstack', label: 'Full-stack app', icon: Layers, prompt: 'Build me a SaaS app for...' },
+  { id: 'mobile',    label: 'Mobile app',     icon: Smartphone, prompt: 'Build me a mobile app for...' },
+  { id: 'landing',   label: 'Landing page',   icon: Globe, prompt: 'Build me a landing page for...' },
+  { id: 'brainstorm',label: 'Brainstorm',     icon: Lightbulb, prompt: 'Brainstorm ideas about...' },
+];
 
 export default function CodeAgentView() {
   const [projects, setProjects] = useState([]);
-  const [active, setActive] = useState(null); // {project, files}
+  const [active, setActive] = useState(null);
   const [activeFile, setActiveFile] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [pState, setPState] = useState(null);
   const [description, setDescription] = useState('');
+  const [mode, setMode] = useState('fullstack');
   const [creating, setCreating] = useState(false);
   const [building, setBuilding] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState([]);
   const { toast } = useToast();
+  const { theme, toggle } = useTheme();
 
   const loadProjects = async () => {
     setLoading(true);
     try {
       const { data } = await api.get('/projects');
       setProjects(data || []);
-    } catch (e) {
-      toast({ title: 'Failed to load projects', description: e?.response?.data?.detail || '', variant: 'destructive' });
-    } finally { setLoading(false); }
+    } catch (e) {} finally { setLoading(false); }
   };
-
   useEffect(() => { loadProjects(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openProject = async (id) => {
@@ -34,46 +42,35 @@ export default function CodeAgentView() {
       const { data } = await api.get(`/projects/${id}`);
       setActive(data);
       setActiveFile(data.files?.[0] || null);
-      // load state + jobs
       try {
         const [s, j] = await Promise.all([api.get(`/projects/${id}/state`), api.get(`/projects/${id}/jobs`)]);
         setPState(s.data); setJobs(j.data || []);
       } catch (_) {}
-    } catch (e) {
-      toast({ title: 'Failed to open', variant: 'destructive' });
-    }
+      // Generate continuation suggestions
+      try {
+        const sugRes = await api.post(`/projects/${id}/suggest`);
+        setSuggestions(sugRes.data?.suggestions || []);
+      } catch (_) { setSuggestions([]); }
+    } catch (e) { toast({ title: 'Failed to open', variant: 'destructive' }); }
   };
 
-  // Poll jobs every 2s while project is open
   useEffect(() => {
     if (!active) return;
     const t = setInterval(async () => {
       try {
-        const [s, j] = await Promise.all([
-          api.get(`/projects/${active.project.id}/state`),
-          api.get(`/projects/${active.project.id}/jobs`),
-        ]);
+        const [s, j] = await Promise.all([api.get(`/projects/${active.project.id}/state`), api.get(`/projects/${active.project.id}/jobs`)]);
         setPState(s.data); setJobs(j.data || []);
       } catch (_) {}
     }, 2500);
     return () => clearInterval(t);
   }, [active?.project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const enqueueJob = async (agentType, payload = {}) => {
-    if (!active) return;
-    try {
-      await api.post(`/projects/${active.project.id}/jobs`, { project_id: active.project.id, agent_type: agentType, payload });
-      toast({ title: `${agentType} job queued`, description: 'Running in background.' });
-    } catch (e) {
-      toast({ title: 'Failed to queue', variant: 'destructive' });
-    }
-  };
-
   const createPlan = async () => {
     if (!description.trim()) return;
     setCreating(true);
     try {
-      const { data } = await api.post('/projects/plan', { description });
+      const fullDesc = `[${MODES.find((m) => m.id === mode)?.label}] ${description}`;
+      const { data } = await api.post('/projects/plan', { description: fullDesc });
       setProjects((p) => [data, ...p]);
       setDescription('');
       await openProject(data.id);
@@ -89,7 +86,7 @@ export default function CodeAgentView() {
     try {
       await api.post(`/projects/${active.project.id}/build`);
       await openProject(active.project.id);
-      toast({ title: 'Build complete', description: 'Code generated and saved.' });
+      toast({ title: 'Build complete' });
     } catch (e) {
       toast({ title: 'Build failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
     } finally { setBuilding(false); }
@@ -98,13 +95,8 @@ export default function CodeAgentView() {
   const saveFile = async (content) => {
     if (!active || !activeFile) return;
     try {
-      await api.put(`/projects/${active.project.id}/files`, {
-        path: activeFile.path, content, language: activeFile.language,
-      });
-      setActive((s) => ({
-        ...s,
-        files: s.files.map((f) => f.path === activeFile.path ? { ...f, content } : f),
-      }));
+      await api.put(`/projects/${active.project.id}/files`, { path: activeFile.path, content, language: activeFile.language });
+      setActive((s) => ({ ...s, files: s.files.map((f) => f.path === activeFile.path ? { ...f, content } : f) }));
       setActiveFile((f) => ({ ...f, content }));
     } catch (e) {}
   };
@@ -126,68 +118,115 @@ export default function CodeAgentView() {
     loadProjects();
   };
 
+  const applySuggestion = (s) => {
+    setDescription(s);
+  };
+
+  // ============ HOME (no project open) ============
   if (!active) {
     return (
-      <div className="flex-1 overflow-y-auto bg-slate-50">
-        <div className="max-w-4xl mx-auto px-8 py-10">
-          <div className="flex items-center gap-3 mb-1">
-            <Hammer className="w-6 h-6 text-slate-900" />
-            <h1 className="text-[28px] font-semibold text-slate-900">Build with Jarvis</h1>
-          </div>
-          <p className="text-slate-500 mb-6">Describe an app. Jarvis plans, codes, and ships it to your Supabase + GitHub.</p>
+      <div className={`flex-1 overflow-y-auto relative ${theme === 'dark' ? 'bg-[#0a0a0c] text-white' : 'bg-slate-50 text-slate-900'}`}>
+        {/* Floating letters background (only dark) */}
+        {theme === 'dark' && (
+          <div className="absolute inset-0 grain-bg pointer-events-none" />
+        )}
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-8">
+        {/* Top right: theme toggle */}
+        <div className="absolute top-4 right-6 z-20">
+          <button onClick={toggle} className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-700'}`}>
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <div className="relative z-10 max-w-4xl mx-auto px-6 pt-24 pb-10">
+          <h1 className={`text-center font-semibold tracking-tight ${theme === 'dark' ? 'text-white glow-text' : 'text-slate-900'}`} style={{ fontSize: 'clamp(36px, 6vw, 72px)', lineHeight: 1.05 }}>
+            What can I do for you today?
+          </h1>
+
+          {/* Mode tabs */}
+          <div className={`mt-12 flex justify-center gap-1 p-1 rounded-2xl mx-auto w-fit ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-white border border-slate-200'}`}>
+            {MODES.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => { setMode(m.id); if (!description) setDescription(''); }}
+                className={`flex items-center gap-2 px-4 h-10 rounded-xl text-[13px] font-medium transition-colors ${
+                  mode === m.id
+                    ? theme === 'dark' ? 'bg-white/10 text-white' : 'bg-slate-900 text-white'
+                    : theme === 'dark' ? 'text-white/60 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <m.icon className="w-3.5 h-3.5" /> {m.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Composer */}
+          <div className={`mt-3 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. A todo app with Supabase auth, projects, drag-and-drop sorting, dark mode."
-              rows={4}
-              className="w-full bg-slate-50 rounded-xl px-4 py-3 outline-none resize-none text-[14px] text-slate-800 placeholder:text-slate-400"
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) createPlan(); }}
+              placeholder={MODES.find((m) => m.id === mode)?.prompt}
+              rows={5}
+              className={`w-full px-5 py-4 bg-transparent outline-none resize-none text-[15px] ${theme === 'dark' ? 'text-white placeholder:text-white/30' : 'text-slate-800 placeholder:text-slate-400'}`}
             />
-            <div className="flex justify-end mt-3">
+            <div className={`flex items-center justify-between px-3 py-2 border-t ${theme === 'dark' ? 'border-white/5' : 'border-slate-100'}`}>
+              <div className="flex items-center gap-2">
+                <button title="Attach files (coming soon)" className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-white/50 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'}`}>
+                  <Paperclip className="w-3.5 h-3.5" />
+                </button>
+                <span className={`text-[11px] px-2 py-1 rounded-full ${theme === 'dark' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
+                  Auto-routed to best free model
+                </span>
+              </div>
               <button
                 onClick={createPlan}
                 disabled={creating || !description.trim()}
-                className="h-10 px-5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium flex items-center gap-2 disabled:opacity-60 transition-colors"
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 ${theme === 'dark' ? 'bg-white text-slate-900 hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
               >
-                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {creating ? 'Planning...' : 'Generate detailed plan'}
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
               </button>
             </div>
           </div>
 
-          <h2 className="text-[16px] font-semibold text-slate-900 mb-3">Your projects</h2>
-          {loading ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
-          ) : projects.length === 0 ? (
-            <div className="text-slate-400 text-center py-8 border border-dashed border-slate-200 rounded-xl">No projects yet.</div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {projects.map((p) => (
-                <div key={p.id} className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-900 text-white flex items-center justify-center flex-shrink-0">
-                      <FileCode className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-slate-900 truncate">{p.name}</div>
-                      <div className="text-[12px] text-slate-500 truncate">{p.description}</div>
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                          p.status === 'ready' ? 'bg-emerald-50 text-emerald-700' : p.status === 'building' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {p.status}
-                        </span>
-                        {p.github_url && <a href={p.github_url} target="_blank" rel="noreferrer" className="text-[11px] text-slate-500 hover:text-slate-900 flex items-center gap-1"><Github className="w-3 h-3" />repo</a>}
+          {/* Quick start templates */}
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            {['SaaS dashboard', 'AI chat app', 'E-commerce store', 'Notes app', 'Portfolio site'].map((t) => (
+              <button
+                key={t}
+                onClick={() => setDescription(`Build me a ${t.toLowerCase()}`)}
+                className={`px-3 h-8 rounded-full text-[12px] transition-colors ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-white/70 border border-white/10' : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {/* Recent projects */}
+          {projects.length > 0 && (
+            <div className="mt-16">
+              <h2 className={`text-[14px] font-semibold mb-3 ${theme === 'dark' ? 'text-white/80' : 'text-slate-900'}`}>Recent projects</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {projects.slice(0, 8).map((p) => (
+                  <div key={p.id} className={`rounded-xl border p-4 transition-colors ${theme === 'dark' ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white border-slate-200 hover:shadow-md'}`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-900 text-white'}`}>
+                        <FileCode className={`w-5 h-5 ${theme === 'dark' ? 'text-cyan-400' : 'text-white'}`} />
                       </div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{p.name}</div>
+                        <div className={`text-[12px] truncate ${theme === 'dark' ? 'text-white/50' : 'text-slate-500'}`}>{p.description}</div>
+                      </div>
+                      <button onClick={() => remove(p.id)} className={`${theme === 'dark' ? 'text-white/40 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`}>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button onClick={() => remove(p.id)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => openProject(p.id)} className={`mt-3 w-full h-9 rounded-lg text-[13px] font-medium flex items-center justify-center gap-1 transition-colors ${theme === 'dark' ? 'bg-white/5 hover:bg-white/15 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>
+                      Open <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
-                  <button onClick={() => openProject(p.id)} className="mt-3 w-full h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[13px] font-medium flex items-center justify-center gap-1 transition-colors">
-                    Open <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -195,140 +234,125 @@ export default function CodeAgentView() {
     );
   }
 
-  // --- IDE view ---
+  // ============ IDE VIEW (project open) ============
   const plan = active.project.plan || {};
+  const dark = theme === 'dark';
   return (
-    <div className="flex-1 flex flex-col bg-slate-50 min-h-0">
-      <header className="px-6 py-3 border-b border-slate-200 bg-white flex items-center gap-3">
-        <button onClick={() => setActive(null)} className="text-[13px] text-slate-500 hover:text-slate-900">← Projects</button>
+    <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-[#0a0a0c]' : 'bg-slate-50'}`}>
+      <header className={`px-6 py-3 border-b flex items-center gap-3 ${dark ? 'bg-[#111114] border-white/10' : 'bg-white border-slate-200'}`}>
+        <button onClick={() => setActive(null)} className={`text-[13px] ${dark ? 'text-white/60 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}>← Projects</button>
         <div className="flex-1 min-w-0">
-          <div className="text-[14px] font-semibold text-slate-900 truncate">{active.project.name}</div>
-          <div className="text-[11px] text-slate-500 truncate">{active.project.description}</div>
+          <div className={`text-[14px] font-semibold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{active.project.name}</div>
+          <div className={`text-[11px] truncate ${dark ? 'text-white/50' : 'text-slate-500'}`}>{active.project.description}</div>
         </div>
         <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-          active.project.status === 'ready' ? 'bg-emerald-50 text-emerald-700' : active.project.status === 'building' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'
+          active.project.status === 'ready' ? dark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-700'
+          : active.project.status === 'building' ? dark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-50 text-amber-700'
+          : dark ? 'bg-white/5 text-white/60' : 'bg-slate-100 text-slate-600'
         }`}>{active.project.status}</span>
-        <button
-          onClick={build}
-          disabled={building}
-          className="h-9 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-60 transition-colors"
-        >
+        <button onClick={build} disabled={building}
+          className={`h-9 px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-60 transition-colors ${dark ? 'bg-white text-slate-900 hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
           {building ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
           {building ? 'Building...' : (active.files?.length ? 'Rebuild' : 'Build')}
         </button>
-        <button
-          onClick={pushGithub}
-          disabled={pushing || !active.files?.length}
-          className="h-9 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-50 transition-colors"
-        >
-          {pushing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Github className="w-3.5 h-3.5" />}
-          Push to GitHub
+        <button onClick={pushGithub} disabled={pushing || !active.files?.length}
+          className={`h-9 px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-50 transition-colors ${dark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}>
+          {pushing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Github className="w-3.5 h-3.5" />} Push to GitHub
+        </button>
+        <button onClick={toggle} className={`w-9 h-9 rounded-full flex items-center justify-center ${dark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-white border border-slate-200 hover:bg-slate-100'}`}>
+          {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
       </header>
 
       <div className="flex-1 flex min-h-0">
-        {/* Plan + file tree */}
-        <div className="w-[300px] border-r border-slate-200 bg-white flex flex-col min-h-0">
-          <div className="p-4 border-b border-slate-200 overflow-y-auto max-h-[40%]">
-            <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Plan</div>
-            {plan.summary && <div className="text-[12px] text-slate-700 mb-2">{plan.summary}</div>}
+        {/* Plan + activity */}
+        <div className={`w-[320px] border-r flex flex-col min-h-0 ${dark ? 'bg-[#111114] border-white/10' : 'bg-white border-slate-200'}`}>
+          <div className={`p-4 border-b overflow-y-auto max-h-[35%] ${dark ? 'border-white/10' : 'border-slate-200'}`}>
+            <div className={`text-[11px] uppercase tracking-wider font-semibold mb-2 ${dark ? 'text-white/40' : 'text-slate-400'}`}>Plan</div>
+            {plan.summary && <div className={`text-[12px] mb-2 ${dark ? 'text-white/70' : 'text-slate-700'}`}>{plan.summary}</div>}
             <ol className="space-y-1.5">
               {(plan.steps || []).map((s) => (
                 <li key={s.id} className="flex items-start gap-2 text-[12px]">
-                  <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-600 text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">{s.id}</span>
+                  <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5 ${dark ? 'bg-white/10 text-white/60' : 'bg-slate-100 text-slate-600'}`}>{s.id}</span>
                   <div className="min-w-0">
-                    <div className="font-medium text-slate-800 truncate">{s.title}</div>
-                    <div className="text-slate-500 text-[11px] line-clamp-2">{s.description}</div>
+                    <div className={`font-medium truncate ${dark ? 'text-white/90' : 'text-slate-800'}`}>{s.title}</div>
+                    <div className={`text-[11px] line-clamp-2 ${dark ? 'text-white/40' : 'text-slate-500'}`}>{s.description}</div>
                   </div>
                 </li>
               ))}
             </ol>
           </div>
+
           <div className="flex-1 overflow-y-auto">
-            <div className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
-              <span>Files</span>
-              <div className="flex gap-1">
-                <button onClick={() => enqueueJob('reviewer', { instruction: 'review generated files' })} title="Run reviewer" className="text-slate-400 hover:text-slate-900 text-[10px] uppercase">review</button>
-                <span className="text-slate-300">|</span>
-                <button onClick={() => enqueueJob('tester', { instruction: 'generate tests' })} title="Run tester" className="text-slate-400 hover:text-slate-900 text-[10px] uppercase">test</button>
-              </div>
-            </div>
+            <div className={`px-4 pt-3 pb-1 text-[11px] uppercase tracking-wider font-semibold ${dark ? 'text-white/40' : 'text-slate-400'}`}>Files</div>
             {(active.files || []).length === 0 && (
-              <div className="px-4 py-3 text-[12px] text-slate-400">No files yet. Click Build.</div>
+              <div className={`px-4 py-3 text-[12px] ${dark ? 'text-white/40' : 'text-slate-400'}`}>No files yet. Click Build.</div>
             )}
             {(active.files || []).map((f) => (
-              <button
-                key={f.path}
-                onClick={() => setActiveFile(f)}
+              <button key={f.path} onClick={() => setActiveFile(f)}
                 className={`w-full text-left px-4 py-1.5 text-[12px] flex items-center gap-2 transition-colors ${
-                  activeFile?.path === f.path ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <FileCode className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate">{f.path}</span>
+                  activeFile?.path === f.path
+                    ? dark ? 'bg-white/10 text-white' : 'bg-slate-900 text-white'
+                    : dark ? 'text-white/70 hover:bg-white/5' : 'text-slate-700 hover:bg-slate-50'
+                }`}>
+                <FileCode className="w-3.5 h-3.5 flex-shrink-0" /><span className="truncate">{f.path}</span>
               </button>
             ))}
-            {/* Activity feed */}
-            <div className="px-4 pt-4 pb-1 text-[11px] uppercase tracking-wider text-slate-400 font-semibold border-t border-slate-100 mt-2">
-              Activity {pState?.current_phase && <span className="ml-1 text-emerald-600 normal-case">· {pState.current_phase}</span>}
+
+            <div className={`px-4 pt-4 pb-1 text-[11px] uppercase tracking-wider font-semibold border-t mt-2 ${dark ? 'text-white/40 border-white/10' : 'text-slate-400 border-slate-100'}`}>
+              Activity {pState?.current_phase && <span className={`ml-1 normal-case ${dark ? 'text-emerald-400' : 'text-emerald-600'}`}>· {pState.current_phase}</span>}
             </div>
-            {jobs.length === 0 && (
-              <div className="px-4 py-2 text-[12px] text-slate-400">No jobs yet.</div>
-            )}
-            {jobs.slice(0, 25).map((j) => {
+            {jobs.slice(0, 30).map((j) => {
               const actions = j.result?.actions || [];
-              if (actions.length > 0) {
-                return actions.map((a, i) => (
-                  <div key={`${j.id}-${i}`} className="px-4 py-1.5 flex items-center gap-2 hover:bg-slate-50 rounded mx-1">
-                    {a.action === 'created' ? <FilePlus className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" /> : <FilePenLine className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" />}
-                    <span className={`text-[11px] uppercase tracking-wider font-semibold ${a.action === 'created' ? 'text-emerald-600' : 'text-cyan-600'}`}>{a.action}</span>
-                    <code className="text-[11px] font-mono text-fuchsia-600 truncate flex-1">{a.path}</code>
-                  </div>
-                ));
-              }
+              if (actions.length > 0) return actions.map((a, i) => (
+                <div key={`${j.id}-${i}`} className={`px-4 py-1.5 flex items-center gap-2 ${dark ? 'hover:bg-white/5' : 'hover:bg-slate-50'} rounded mx-1`}>
+                  {a.action === 'created' ? <FilePlus className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" /> : <FilePenLine className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" />}
+                  <span className={`text-[10px] uppercase tracking-wider font-semibold ${a.action === 'created' ? 'text-emerald-500' : 'text-cyan-500'}`}>{a.action}</span>
+                  <code className={`text-[11px] font-mono truncate flex-1 ${dark ? 'text-fuchsia-400' : 'text-fuchsia-600'}`}>{a.path}</code>
+                </div>
+              ));
               return (
                 <div key={j.id} className="px-4 py-1.5 text-[11px] flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                    j.status === 'done' ? 'bg-emerald-500' :
-                    j.status === 'processing' ? 'bg-amber-500 animate-pulse' :
-                    j.status === 'failed' ? 'bg-red-500' : 'bg-slate-300'
-                  }`} />
-                  <span className="font-medium text-slate-700 capitalize">{j.agent_type}</span>
-                  <span className="text-slate-400 truncate flex-1">{j.status}</span>
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${j.status === 'done' ? 'bg-emerald-500' : j.status === 'processing' ? 'bg-amber-500 animate-pulse' : j.status === 'failed' ? 'bg-red-500' : 'bg-slate-300'}`} />
+                  <span className={`font-medium capitalize ${dark ? 'text-white/80' : 'text-slate-700'}`}>{j.agent_type}</span>
+                  <span className={`truncate flex-1 ${dark ? 'text-white/40' : 'text-slate-400'}`}>{j.status}</span>
                 </div>
               );
             })}
+
+            {/* Suggestions to continue */}
+            {suggestions.length > 0 && (
+              <div className="px-2 pt-4 pb-4">
+                <div className={`px-2 pb-2 text-[11px] uppercase tracking-wider font-semibold ${dark ? 'text-white/40' : 'text-slate-400'}`}>Continue</div>
+                {suggestions.slice(0, 5).map((s, i) => (
+                  <button key={i} onClick={() => { setActive(null); applySuggestion(s); }}
+                    className={`w-full text-left px-3 py-2 mx-1 my-1 rounded-lg text-[12px] transition-colors ${dark ? 'bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20' : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200'}`}>
+                    <Sparkles className="w-3 h-3 inline mr-1.5" />{s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Editor */}
-        <div className="flex-1 min-w-0 bg-[#1e1e1e]">
+        <div className={`flex-1 min-w-0 ${dark ? 'bg-[#0a0a0c]' : 'bg-[#1e1e1e]'}`}>
           {activeFile ? (
             <>
-              <div className="px-4 py-2 bg-[#252526] border-b border-[#1e1e1e] text-[12px] text-slate-300 flex items-center gap-2">
-                <FileCode className="w-3.5 h-3.5" />
-                {activeFile.path}
-                <span className="text-slate-500 text-[10px] ml-auto">{activeFile.language}</span>
+              <div className={`px-4 py-2 border-b text-[12px] flex items-center gap-2 ${dark ? 'bg-[#111114] border-white/10 text-white/70' : 'bg-[#252526] border-[#1e1e1e] text-slate-300'}`}>
+                <FileCode className="w-3.5 h-3.5" />{activeFile.path}
+                <span className={`text-[10px] ml-auto ${dark ? 'text-white/40' : 'text-slate-500'}`}>{activeFile.language}</span>
               </div>
-              <Editor
-                height="calc(100% - 36px)"
-                theme="vs-dark"
-                language={activeFile.language || 'plaintext'}
-                value={activeFile.content || ''}
-                onChange={(v) => saveFile(v || '')}
-                options={{ minimap: { enabled: false }, fontSize: 13, automaticLayout: true }}
-              />
+              <Editor height="calc(100% - 36px)" theme="vs-dark" language={activeFile.language || 'plaintext'} value={activeFile.content || ''} onChange={(v) => saveFile(v || '')} options={{ minimap: { enabled: false }, fontSize: 13, automaticLayout: true }} />
             </>
           ) : (
-            <div className="h-full flex items-center justify-center text-slate-500 text-[14px]">
+            <div className={`h-full flex items-center justify-center text-[14px] ${dark ? 'text-white/40' : 'text-slate-500'}`}>
               {active.project.status === 'planning' ? (
                 <div className="text-center">
-                  <Rocket className="w-10 h-10 mx-auto mb-3 text-slate-400" />
-                  <div className="text-slate-300">Plan ready. Click Build to generate code.</div>
+                  <Rocket className={`w-10 h-10 mx-auto mb-3 ${dark ? 'text-white/30' : 'text-slate-400'}`} />
+                  <div className={dark ? 'text-white/60' : 'text-slate-300'}>Plan ready. Click Build to generate code.</div>
                 </div>
-              ) : (
-                <span>Select a file</span>
-              )}
+              ) : <span>Select a file</span>}
             </div>
           )}
         </div>

@@ -251,22 +251,28 @@ async def delete_task(task_id: str, user=Depends(get_current_user)):
 # ============ CODE AGENT (IDE) ============
 PLAN_SYSTEM = """You are Jarvis, an autonomous senior software architect. Given a brief description of an app the user wants, produce a SUPER DETAILED implementation plan.
 
+Tools and capabilities you have access to:
+- Generate React + Tailwind frontend code
+- Generate FastAPI Python backend code
+- Create tables in user's Supabase Postgres database (DDL)
+- Save all generated files to the project's IDE (Monaco editor)
+- Push complete project to a fresh GitHub repository on the user's account
+- Use multi-LLM router (Gemini, Mistral Codestral, Groq Llama, Cerebras) for free
+- Real OAuth integrations for Google Workspace (Sheets/Docs/Drive/Calendar/YouTube)
+- Web search via plugins (when user has it connected)
+- Stripe billing integration if needed
+
 Return STRICT JSON ONLY (no prose, no code fences) with this exact shape:
 {
   "name": "short kebab-case project name",
-  "summary": "1-2 line product summary",
-  "tech_stack": {"frontend": "...", "backend": "...", "database": "Supabase Postgres"},
+  "summary": "1-2 line product summary, GROUNDED in user's specific request - NEVER use placeholder text like 'Hello World' or 'welcome_message'",
+  "tech_stack": {"frontend": "React + Tailwind", "backend": "FastAPI + Python", "database": "Supabase Postgres"},
   "supabase_tables": [{"name": "...", "columns": [{"name":"...","type":"...","notes":"..."}]}],
-  "steps": [
-    {"id": 1, "title": "...", "description": "what to do", "files": ["paths"]}
-  ],
-  "files_to_generate": [
-    {"path": "frontend/src/App.jsx", "purpose": "..."},
-    {"path": "backend/server.py", "purpose": "..."}
-  ]
+  "steps": [{"id": 1, "title": "...", "description": "what to do", "files": ["paths"]}],
+  "files_to_generate": [{"path": "frontend/src/App.jsx", "purpose": "specific to THIS app"}, ...]
 }
 
-Be exhaustive in steps (8-15 steps). Every app uses React+Tailwind frontend and FastAPI+Supabase backend."""
+CRITICAL: Tailor everything to the user's exact description. Do NOT return generic 'Hello World' / 'settings table with welcome_message' templates. Steps must be 8-15. Files must be 8-15."""
 
 CODE_SYSTEM = """You are Jarvis, an autonomous senior full-stack engineer. Given a project plan and a target file path, output ONLY the file content (no markdown fences, no commentary). Production-ready code, complete and runnable."""
 
