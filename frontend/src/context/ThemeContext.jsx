@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 const ThemeContext = createContext(null);
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => localStorage.getItem('jarvis_theme') || 'light');
+  const [theme, setTheme] = useState(() => localStorage.getItem('jarvis_theme') || 'dark');
 
   useEffect(() => {
     document.documentElement.classList.remove('light', 'dark');

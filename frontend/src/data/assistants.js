@@ -47,7 +47,7 @@ export const PLUGIN_ICONS = {
   youtube: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg',
   github: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/github.svg',
   discord: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/discord.svg',
-  whatsapp: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/whatsapp.svg',
+  telegram: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/telegram.svg',
 };
 
 export const PLUGIN_ACCENT = {
@@ -56,5 +56,5 @@ export const PLUGIN_ACCENT = {
   youtube: '#FF0000',
   github: '#181717',
   discord: '#5865F2',
-  whatsapp: '#25D366',
+  telegram: '#26A5E4',
 };

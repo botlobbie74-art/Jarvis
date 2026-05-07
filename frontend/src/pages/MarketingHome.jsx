@@ -12,7 +12,7 @@ const PRICING = [
   {
     id: 'starter', name: 'Starter', price: '19.99', tagline: 'For solo builders',
     cta: 'Start building', highlight: true, badge: 'Most popular',
-    features: ['50 app builds / month', 'Unlimited chat', 'All plugins (incl. WhatsApp)', 'Unlimited GitHub pushes', 'Priority email support', 'Background tasks'],
+    features: ['50 app builds / month', 'Unlimited chat', 'All plugins (Telegram + Discord)', 'Unlimited GitHub pushes', 'Priority email support', 'Background tasks'],
   },
   {
     id: 'pro', name: 'Pro', price: '49.99', tagline: 'For teams & power users',
@@ -28,7 +28,7 @@ const FEATURES = [
   { icon: Plug, title: 'Connected Google Workspace', desc: 'Reads your Sheets, drafts your Docs, schedules in Calendar, finds files in Drive — with one OAuth click.' },
   { icon: Hammer, title: 'Built-in IDE', desc: 'Real Monaco editor (the engine behind VS Code) lives inside Jarvis. Edit any generated file, save in one click.' },
   { icon: Zap, title: 'Multi-LLM router', desc: 'Routes every task to the best free model — Gemini Flash for planning, Mistral Codestral for code, Groq Llama for chat. Auto-fallback on quota.' },
-  { icon: MessageSquare, title: 'WhatsApp (soon)', desc: 'Talk to Jarvis from WhatsApp. Replies, reminders, summaries — without the website open. Launching shortly.' },
+  { icon: MessageSquare, title: 'Telegram & Discord bots', desc: 'Message Jarvis directly from Telegram or Discord. Get replies, run tasks, ship code — without opening the app.' },
   { icon: Code2, title: 'Code shipped to your GitHub', desc: 'Every project gets its own repo on your account. Open the PR, deploy from there, own the code.' },
   { icon: Sparkles, title: '5 specialized assistants', desc: 'Jarvis (tech), Judy (sales), Alfred (exec), Venus (content), Donna (personal) — each with their own brain.' },
 ];
@@ -44,7 +44,7 @@ const FAQ = [
   { q: 'Do I need to provide my own API keys?', a: 'No. Jarvis runs on a multi-LLM free-tier router. Bring your own keys only if you want.' },
   { q: 'Where does the generated code live?', a: 'In your own GitHub account. We create the repo, you own it forever.' },
   { q: 'Can Jarvis read my Google Sheets / Docs?', a: 'Yes — connect Google in Plugins. Jarvis can read, write and act on your behalf with OAuth scopes you approve.' },
-  { q: 'Is WhatsApp legit / safe?', a: 'We use whatsapp-web.js with your own scanned session. We never see your messages.' },
+  { q: 'How does the Telegram / Discord integration work?', a: 'Connect your account in Plugins, then message @JarvisBot on Telegram or use /jarvis in Discord. Your messages are routed directly to your AI assistant.' },
   { q: 'Cancel anytime?', a: 'Yes. Manage everything from the Stripe customer portal — one click cancel.' },
 ];
 

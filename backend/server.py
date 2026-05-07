@@ -122,6 +122,45 @@ async def login(payload: UserLogin):
 async def me(user=Depends(get_current_user)):
     return UserOut(id=user["id"], email=user["email"], name=user["name"], created_at=user["created_at"])
 
+# ============ SUPABASE OAUTH EXCHANGE ============
+class SupabaseExchangeIn(BaseModel):
+    access_token: str
+    email: str
+    name: Optional[str] = None
+
+@api_router.post("/auth/supabase-exchange", response_model=TokenResponse)
+async def supabase_exchange(payload: SupabaseExchangeIn):
+    """Exchange a Supabase OAuth access_token for a Jarvis JWT."""
+    # Verify the token is valid by calling Supabase's user endpoint
+    async with httpx.AsyncClient() as cli:
+        r = await cli.get(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={"Authorization": f"Bearer {payload.access_token}", "apikey": SUPABASE_SERVICE_KEY}
+        )
+    if r.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid Supabase token")
+    sb_user = r.json()
+    email = sb_user.get("email") or payload.email
+    email = email.lower()
+    name = payload.name or email.split("@")[0]
+    # Upsert user in jarvis_users
+    existing = sb.table("jarvis_users").select("*").eq("email", email).limit(1).execute()
+    if existing.data:
+        u = existing.data[0]
+        # Update name from OAuth if not set
+        if not u.get("name") and name:
+            sb.table("jarvis_users").update({"name": name}).eq("id", u["id"]).execute()
+            u["name"] = name
+    else:
+        uid = str(uuid.uuid4())
+        doc = {"id": uid, "email": email, "name": name, "password_hash": hash_password(str(uuid.uuid4()))}
+        sb.table("jarvis_users").insert(doc).execute()
+        u = sb.table("jarvis_users").select("*").eq("id", uid).single().execute().data
+    return TokenResponse(
+        access_token=create_token(u["id"]),
+        user=UserOut(id=u["id"], email=u["email"], name=u["name"] or name, created_at=u["created_at"])
+    )
+
 # ============ CHAT ============
 ASSISTANT_PERSONAS = {
     "jarvis": "You are Jarvis, a Tech co-founder AI assistant. You review code, architect systems, and ship features. Be concise, technical, and direct.",
@@ -203,7 +242,8 @@ DEFAULT_PLUGINS = [
     {"id": "google_search", "name": "Google Search", "description": "Search the web", "category": "search"},
     {"id": "youtube", "name": "YouTube", "description": "Search and manage videos", "category": "media"},
     {"id": "github", "name": "GitHub", "description": "Repos, issues, pull requests", "category": "developer"},
-    {"id": "whatsapp", "name": "WhatsApp", "description": "Background messaging", "category": "communication"},
+    {"id": "telegram", "name": "Telegram", "description": "Message Jarvis from Telegram", "category": "messaging"},
+    {"id": "discord", "name": "Discord", "description": "Chat with Jarvis in Discord", "category": "messaging"},
 ]
 
 @api_router.get("/plugins")
@@ -249,30 +289,46 @@ async def delete_task(task_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 # ============ CODE AGENT (IDE) ============
-PLAN_SYSTEM = """You are Jarvis, an autonomous senior software architect. Given a brief description of an app the user wants, produce a SUPER DETAILED implementation plan.
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME', 'JarvisAgentBot')
+DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', '')
+DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
 
-Tools and capabilities you have access to:
-- Generate React + Tailwind frontend code
-- Generate FastAPI Python backend code
-- Create tables in user's Supabase Postgres database (DDL)
-- Save all generated files to the project's IDE (Monaco editor)
-- Push complete project to a fresh GitHub repository on the user's account
-- Use multi-LLM router (Gemini, Mistral Codestral, Groq Llama, Cerebras) for free
-- Real OAuth integrations for Google Workspace (Sheets/Docs/Drive/Calendar/YouTube)
-- Web search via plugins (when user has it connected)
-- Stripe billing integration if needed
+# In-memory link codes (short-lived, production should use Redis/DB)
+_telegram_link_codes: Dict[str, str] = {}  # code -> user_id
+_discord_link_codes: Dict[str, str] = {}   # code -> user_id
 
-Return STRICT JSON ONLY (no prose, no code fences) with this exact shape:
+PLAN_SYSTEM = """You are Jarvis, an autonomous senior software architect AND code execution agent. You have FULL access to:
+
+CAPABILITIES YOU CAN USE:
+- Generate React + Tailwind frontend code (production-ready)
+- Generate FastAPI Python backend code (production-ready)
+- Create Supabase Postgres tables with proper DDL
+- Save generated files to the IDE (Monaco editor) in real-time
+- Push complete project to a fresh GitHub repository
+- Use multi-LLM router (Gemini Flash, Mistral Codestral, Groq Llama, Cerebras) — FREE
+- Real Google OAuth (Sheets, Docs, Drive, Calendar, YouTube)
+- Web search via plugins
+- Stripe billing integration
+- Install Python packages via pip and Node packages via npm automatically
+- Run terminal commands to set up, test, and validate the project
+
+Return STRICT JSON ONLY (no prose, no markdown fences) with this exact shape:
 {
-  "name": "short kebab-case project name",
-  "summary": "1-2 line product summary, GROUNDED in user's specific request - NEVER use placeholder text like 'Hello World' or 'welcome_message'",
+  "name": "short kebab-case project name tailored to THIS request",
+  "summary": "1-2 line summary of exactly what this app does, based on the user's description",
   "tech_stack": {"frontend": "React + Tailwind", "backend": "FastAPI + Python", "database": "Supabase Postgres"},
-  "supabase_tables": [{"name": "...", "columns": [{"name":"...","type":"...","notes":"..."}]}],
-  "steps": [{"id": 1, "title": "...", "description": "what to do", "files": ["paths"]}],
-  "files_to_generate": [{"path": "frontend/src/App.jsx", "purpose": "specific to THIS app"}, ...]
+  "supabase_tables": [{"name": "table_name_specific_to_this_app", "columns": [{"name":"id","type":"uuid","notes":"primary key"}]}],
+  "steps": [{"id": 1, "title": "Specific step title", "description": "Detailed description", "files": ["paths"]}],
+  "files_to_generate": [{"path": "frontend/src/App.jsx", "purpose": "specific purpose for THIS app"}, ...]
 }
 
-CRITICAL: Tailor everything to the user's exact description. Do NOT return generic 'Hello World' / 'settings table with welcome_message' templates. Steps must be 8-15. Files must be 8-15."""
+!!! CRITICAL RULES !!!
+1. NEVER use placeholder text like 'Hello World', 'welcome_message', 'test@example.com', or 'settings table'
+2. NEVER generate generic boilerplate unrelated to the user's request
+3. EVERY table name, column, file, and step must be 100% specific to what the user asked for
+4. Steps must be 8-15. Files must be 8-15 covering full app (auth, UI, API, DB, styling)
+5. The summary must describe the user's EXACT requested app"""
 
 CODE_SYSTEM = """You are Jarvis, an autonomous senior full-stack engineer. Given a project plan and a target file path, output ONLY the file content (no markdown fences, no commentary). Production-ready code, complete and runnable."""
 
@@ -576,40 +632,116 @@ async def _run_job(job_id: str):
         sb.table("jarvis_agent_jobs").update({"status": "failed", "error": str(e)[:400],
                                               "finished_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
 
-# ============ WHATSAPP PROXY ============
-class WhatsAppSendIn(BaseModel):
-    to: str
-    message: str
+# ============ TELEGRAM PLUGIN ============
+import random, string
 
-@api_router.post("/whatsapp/start")
-async def wa_start(user=Depends(get_current_user)):
-    async with httpx.AsyncClient(timeout=30) as cli:
-        r = await cli.post(f"{WA_SERVICE_URL}/wa/start", json={"user_id": user["id"]})
-    if r.status_code >= 400:
-        raise HTTPException(500, f"WA service error: {r.text[:200]}")
-    return r.json()
+def _gen_code(length=6):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
-@api_router.get("/whatsapp/status")
-async def wa_status(user=Depends(get_current_user)):
-    async with httpx.AsyncClient(timeout=10) as cli:
-        r = await cli.get(f"{WA_SERVICE_URL}/wa/status/{user['id']}")
-    if r.status_code >= 400:
-        return {"status": "error", "qr": None}
-    return r.json()
+@api_router.get("/plugins/telegram/link-code")
+async def telegram_link_code(user=Depends(get_current_user)):
+    code = _gen_code()
+    _telegram_link_codes[code] = user["id"]
+    bot_username = TELEGRAM_BOT_USERNAME or "JarvisAgentBot"
+    return {"code": code, "bot_username": bot_username}
 
-@api_router.post("/whatsapp/send")
-async def wa_send(payload: WhatsAppSendIn, user=Depends(get_current_user)):
-    async with httpx.AsyncClient(timeout=15) as cli:
-        r = await cli.post(f"{WA_SERVICE_URL}/wa/send", json={"user_id": user["id"], "to": payload.to, "message": payload.message})
-    if r.status_code >= 400:
-        raise HTTPException(400, r.text[:200])
-    return r.json()
+@api_router.get("/plugins/telegram/status")
+async def telegram_status(user=Depends(get_current_user)):
+    row = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("plugin_id", "telegram").execute()
+    if row.data and row.data[0].get("status") == "connected":
+        return {"status": "connected"}
+    return {"status": "pending"}
 
-@api_router.post("/whatsapp/logout")
-async def wa_logout(user=Depends(get_current_user)):
-    async with httpx.AsyncClient(timeout=10) as cli:
-        await cli.post(f"{WA_SERVICE_URL}/wa/logout", json={"user_id": user["id"]})
+@api_router.post("/plugins/telegram/verify")
+async def telegram_verify(payload: dict):
+    """Called by the Telegram bot webhook when user sends a link code."""
+    code = payload.get("code", "").strip().upper()
+    telegram_user_id = payload.get("telegram_user_id")
+    telegram_username = payload.get("telegram_username", "")
+    uid = _telegram_link_codes.pop(code, None)
+    if not uid:
+        return {"ok": False, "error": "Invalid or expired code"}
+    meta = {"telegram_user_id": telegram_user_id, "telegram_username": telegram_username}
+    existing = sb.table("jarvis_plugins").select("id").eq("user_id", uid).eq("plugin_id", "telegram").execute()
+    doc = {"user_id": uid, "plugin_id": "telegram", "plugin_name": "Telegram",
+           "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta}
+    if existing.data:
+        sb.table("jarvis_plugins").update(doc).eq("user_id", uid).eq("plugin_id", "telegram").execute()
+    else:
+        doc["id"] = str(uuid.uuid4())
+        sb.table("jarvis_plugins").insert(doc).execute()
     return {"ok": True}
+
+@api_router.post("/plugins/telegram/message")
+async def telegram_incoming(payload: dict):
+    """Webhook: incoming message from Telegram → route to Jarvis AI and reply."""
+    telegram_user_id = str(payload.get("telegram_user_id", ""))
+    message_text = payload.get("message", "")
+    if not telegram_user_id or not message_text:
+        return {"ok": False}
+    # Find user linked to this telegram_user_id
+    rows = sb.table("jarvis_plugins").select("*").eq("plugin_id", "telegram").execute().data
+    uid = None
+    for row in rows:
+        meta = row.get("metadata") or {}
+        if str(meta.get("telegram_user_id", "")) == telegram_user_id:
+            uid = row["user_id"]; break
+    if not uid:
+        return {"ok": False, "error": "User not linked"}
+    # Create/reuse a Telegram session
+    existing_sessions = sb.table("jarvis_chat_sessions").select("*").eq("user_id", uid).eq("assistant_id", "jarvis").order("updated_at", desc=True).limit(1).execute()
+    if existing_sessions.data:
+        sid = existing_sessions.data[0]["id"]
+    else:
+        sid = str(uuid.uuid4())
+        sb.table("jarvis_chat_sessions").insert({"id": sid, "user_id": uid, "title": "Telegram", "assistant_id": "jarvis"}).execute()
+    # Call Jarvis AI
+    try:
+        sysm = ASSISTANT_PERSONAS["jarvis"] + "\n\nUser is messaging via Telegram. Keep replies concise (under 300 chars)."
+        res = await router_call("chat", sysm, message_text, sb=sb)
+        reply = res["content"]
+    except Exception as e:
+        reply = f"Sorry, I encountered an error: {str(e)[:100]}"
+    sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "user", "content": message_text, "assistant_id": "jarvis"}).execute()
+    sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "assistant", "content": reply, "assistant_id": "jarvis"}).execute()
+    # Send reply via Telegram Bot API
+    if TELEGRAM_BOT_TOKEN:
+        async with httpx.AsyncClient(timeout=10) as cli:
+            await cli.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                           json={"chat_id": telegram_user_id, "text": reply})
+    return {"ok": True, "reply": reply}
+
+# ============ DISCORD PLUGIN ============
+@api_router.get("/plugins/discord/invite-url")
+async def discord_invite_url(user=Depends(get_current_user)):
+    code = _gen_code()
+    _discord_link_codes[code] = user["id"]
+    invite_url = f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}&permissions=2048&scope=bot" if DISCORD_CLIENT_ID else "https://discord.com/developers/applications"
+    return {"invite_url": invite_url, "code": code}
+
+@api_router.post("/plugins/discord/message")
+async def discord_incoming(payload: dict):
+    """Webhook: incoming message from Discord → route to Jarvis AI."""
+    discord_user_id = str(payload.get("discord_user_id", ""))
+    message_text = payload.get("message", "")
+    channel_id = payload.get("channel_id", "")
+    if not discord_user_id or not message_text:
+        return {"ok": False}
+    rows = sb.table("jarvis_plugins").select("*").eq("plugin_id", "discord").execute().data
+    uid = None
+    for row in rows:
+        meta = row.get("metadata") or {}
+        if str(meta.get("discord_user_id", "")) == discord_user_id:
+            uid = row["user_id"]; break
+    if not uid:
+        return {"ok": False, "error": "User not linked"}
+    try:
+        sysm = ASSISTANT_PERSONAS["jarvis"] + "\n\nUser is messaging via Discord. Keep replies concise."
+        res = await router_call("chat", sysm, message_text, sb=sb)
+        reply = res["content"]
+    except Exception as e:
+        reply = f"Error: {str(e)[:100]}"
+    return {"ok": True, "reply": reply}
 
 # ============ BILLING (STRIPE) ============
 PLAN_LIMITS = {
