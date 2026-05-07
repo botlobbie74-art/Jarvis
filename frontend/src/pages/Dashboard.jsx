@@ -36,7 +36,7 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { if (user) loadSessions(); }, [user]);
+  useEffect(() => { if (user) loadSessions(); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const newChat = async (assistantId) => {
     try {

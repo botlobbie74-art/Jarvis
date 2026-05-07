@@ -27,7 +27,7 @@ export default function CodeAgentView() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { loadProjects(); }, []);
+  useEffect(() => { loadProjects(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openProject = async (id) => {
     try {
@@ -57,7 +57,7 @@ export default function CodeAgentView() {
       } catch (_) {}
     }, 2500);
     return () => clearInterval(t);
-  }, [active?.project?.id]);
+  }, [active?.project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const enqueueJob = async (agentType, payload = {}) => {
     if (!active) return;
