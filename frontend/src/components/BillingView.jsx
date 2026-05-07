@@ -110,9 +110,9 @@ export default function BillingView() {
             <h2 className="text-[18px] font-semibold text-slate-900 mb-3">Upgrade</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {plan !== 'starter' && (
-                <UpgradeCard plan="starter" name="Starter" price="19" features={['50 builds / month', 'Unlimited chat', 'All plugins', 'Unlimited GitHub']} onClick={() => checkout('starter')} pending={pending === 'starter'} highlight />
+                <UpgradeCard plan="starter" name="Starter" price="19.99" features={['50 builds / month', 'Unlimited chat', 'All plugins', 'Unlimited GitHub']} onClick={() => checkout('starter')} pending={pending === 'starter'} highlight />
               )}
-              <UpgradeCard plan="pro" name="Pro" price="49" features={['Unlimited builds', 'Multi-seat (5 users)', 'Priority support', 'Custom plugins']} onClick={() => checkout('pro')} pending={pending === 'pro'} />
+              <UpgradeCard plan="pro" name="Pro" price="49.99" features={['Unlimited builds', 'Multi-seat (5 users)', 'Priority support', 'Custom plugins']} onClick={() => checkout('pro')} pending={pending === 'pro'} />
             </div>
           </div>
         )}
