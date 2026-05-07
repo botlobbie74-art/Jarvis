@@ -4,12 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import { ASSISTANTS } from '../data/assistants';
 import { WingmanFace } from '../components/WingmanLogo';
-import { Plus, MessageSquare, Puzzle, ListChecks, LogOut, Send, Loader2, Trash2, Sparkles } from 'lucide-react';
+import { Plus, MessageSquare, Puzzle, ListChecks, LogOut, Send, Loader2, Trash2, Sparkles, Hammer } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import PluginsView from '../components/PluginsView';
 import TasksView from '../components/TasksView';
 import ChatView from '../components/ChatView';
+import CodeAgentView from '../components/CodeAgentView';
 
 export default function Dashboard() {
   const { user, logout, loading } = useAuth();
@@ -71,8 +72,8 @@ export default function Dashboard() {
         <div className="p-4 border-b border-slate-200 flex items-center gap-2">
           <WingmanFace size={36} />
           <div>
-            <div className="text-[14px] font-bold text-slate-900">Wingman</div>
-            <div className="text-[11px] text-slate-500">by Emergent</div>
+            <div className="text-[14px] font-bold text-slate-900">Jarvis</div>
+            <div className="text-[11px] text-slate-500">Autonomous AI</div>
           </div>
         </div>
 
@@ -84,6 +85,14 @@ export default function Dashboard() {
             }`}
           >
             <MessageSquare className="w-4 h-4" /> Chats
+          </button>
+          <button
+            onClick={() => setView('builder')}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[14px] transition-colors ${
+              view === 'builder' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <Hammer className="w-4 h-4" /> Build apps
           </button>
           <button
             onClick={() => setView('plugins')}
@@ -175,6 +184,7 @@ export default function Dashboard() {
         )}
         {view === 'plugins' && <PluginsView />}
         {view === 'tasks' && <TasksView />}
+        {view === 'builder' && <CodeAgentView />}
       </main>
     </div>
   );

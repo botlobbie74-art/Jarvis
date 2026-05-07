@@ -52,10 +52,10 @@ export default function Landing() {
           <div className="w-full max-w-[360px] flex flex-col items-center">
             <WingmanFace size={80} />
             <h1 className="mt-6 text-[28px] font-semibold text-slate-900 tracking-tight">
-              Introducing Wingman
+              Introducing Jarvis
             </h1>
             <p className="mt-1 text-[20px] font-medium" style={{ color: '#22a3ff' }}>
-              built for getting things done!
+              your autonomous AI engineer.
             </p>
 
             {mode === null && (

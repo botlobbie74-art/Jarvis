@@ -22,7 +22,7 @@ export const WingmanFace = ({ size = 80 }) => (
 
 export const WingmanWordmark = () => (
   <div className="flex items-baseline gap-2 select-none">
-    <span className="text-[15px] font-bold tracking-tight text-slate-900">Wingman</span>
-    <span className="text-[13px] text-slate-500">by Emergent</span>
+    <span className="text-[16px] font-bold tracking-tight text-slate-900">Jarvis</span>
+    <span className="text-[12px] text-slate-500">Autonomous AI</span>
   </div>
 );
