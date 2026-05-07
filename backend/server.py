@@ -243,7 +243,6 @@ DEFAULT_PLUGINS = [
     {"id": "youtube", "name": "YouTube", "description": "Search and manage videos", "category": "media"},
     {"id": "github", "name": "GitHub", "description": "Repos, issues, pull requests", "category": "developer"},
     {"id": "telegram", "name": "Telegram", "description": "Message Jarvis from Telegram", "category": "messaging"},
-    {"id": "discord", "name": "Discord", "description": "Chat with Jarvis in Discord", "category": "messaging"},
 ]
 
 @api_router.get("/plugins")
@@ -291,12 +290,9 @@ async def delete_task(task_id: str, user=Depends(get_current_user)):
 # ============ CODE AGENT (IDE) ============
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME', 'JarvisAgentBot')
-DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', '')
-DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
 
 # In-memory link codes (short-lived, production should use Redis/DB)
 _telegram_link_codes: Dict[str, str] = {}  # code -> user_id
-_discord_link_codes: Dict[str, str] = {}   # code -> user_id
 
 PLAN_SYSTEM = """You are Jarvis, an autonomous senior software architect AND code execution agent. You have FULL access to:
 
@@ -672,76 +668,87 @@ async def telegram_verify(payload: dict):
         sb.table("jarvis_plugins").insert(doc).execute()
     return {"ok": True}
 
-@api_router.post("/plugins/telegram/message")
-async def telegram_incoming(payload: dict):
-    """Webhook: incoming message from Telegram → route to Jarvis AI and reply."""
-    telegram_user_id = str(payload.get("telegram_user_id", ""))
-    message_text = payload.get("message", "")
-    if not telegram_user_id or not message_text:
-        return {"ok": False}
-    # Find user linked to this telegram_user_id
+async def _tg_send(chat_id, text):
+    if not TELEGRAM_BOT_TOKEN:
+        return
+    async with httpx.AsyncClient(timeout=10) as cli:
+        await cli.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                       json={"chat_id": chat_id, "text": text})
+
+@api_router.post("/telegram/webhook")
+async def telegram_webhook(payload: dict):
+    """Native Telegram webhook. Set with:
+    https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://api.jarvisagent.app/api/telegram/webhook
+    """
+    msg = payload.get("message") or payload.get("edited_message") or {}
+    chat = msg.get("chat") or {}
+    frm = msg.get("from") or {}
+    chat_id = chat.get("id")
+    tg_user_id = str(frm.get("id") or chat_id or "")
+    tg_username = frm.get("username", "")
+    text = (msg.get("text") or "").strip()
+    if not chat_id or not text:
+        return {"ok": True}
+
+    # /start handling
+    if text.lower().startswith("/start"):
+        await _tg_send(chat_id,
+            "Hi! I'm Jarvis. To link your account, open jarvisagent.app → Plugins → Telegram, "
+            "then send me the 6-character code shown there.")
+        return {"ok": True}
+
+    # Strip leading slash so users can type /CODE if they wish
+    candidate = text.lstrip("/").upper()
+    # Link-code path: 6 chars, A-Z 0-9
+    if len(candidate) == 6 and candidate.isalnum() and candidate.isupper():
+        uid = _telegram_link_codes.pop(candidate, None)
+        if not uid:
+            await _tg_send(chat_id, "❌ Invalid or expired code. Generate a new one in the app.")
+            return {"ok": True}
+        meta = {"telegram_user_id": tg_user_id, "telegram_chat_id": chat_id, "telegram_username": tg_username}
+        existing = sb.table("jarvis_plugins").select("id").eq("user_id", uid).eq("plugin_id", "telegram").execute()
+        doc = {"user_id": uid, "plugin_id": "telegram", "plugin_name": "Telegram",
+               "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta}
+        if existing.data:
+            sb.table("jarvis_plugins").update(doc).eq("user_id", uid).eq("plugin_id", "telegram").execute()
+        else:
+            doc["id"] = str(uuid.uuid4())
+            sb.table("jarvis_plugins").insert(doc).execute()
+        await _tg_send(chat_id, "✅ Linked! You can now chat with Jarvis here.")
+        return {"ok": True}
+
+    # Normal chat path: find linked user
     rows = sb.table("jarvis_plugins").select("*").eq("plugin_id", "telegram").execute().data
     uid = None
     for row in rows:
-        meta = row.get("metadata") or {}
-        if str(meta.get("telegram_user_id", "")) == telegram_user_id:
+        m = row.get("metadata") or {}
+        if str(m.get("telegram_user_id", "")) == tg_user_id or str(m.get("telegram_chat_id", "")) == str(chat_id):
             uid = row["user_id"]; break
     if not uid:
-        return {"ok": False, "error": "User not linked"}
-    # Create/reuse a Telegram session
+        await _tg_send(chat_id,
+            "You're not linked yet. Open jarvisagent.app → Plugins → Telegram and send me the code.")
+        return {"ok": True}
+
+    # Reuse or create a Telegram chat session
     existing_sessions = sb.table("jarvis_chat_sessions").select("*").eq("user_id", uid).eq("assistant_id", "jarvis").order("updated_at", desc=True).limit(1).execute()
     if existing_sessions.data:
         sid = existing_sessions.data[0]["id"]
     else:
         sid = str(uuid.uuid4())
         sb.table("jarvis_chat_sessions").insert({"id": sid, "user_id": uid, "title": "Telegram", "assistant_id": "jarvis"}).execute()
-    # Call Jarvis AI
+
     try:
         sysm = ASSISTANT_PERSONAS["jarvis"] + "\n\nUser is messaging via Telegram. Keep replies concise (under 300 chars)."
-        res = await router_call("chat", sysm, message_text, sb=sb)
+        res = await router_call("chat", sysm, text, sb=sb)
         reply = res["content"]
     except Exception as e:
-        reply = f"Sorry, I encountered an error: {str(e)[:100]}"
-    sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "user", "content": message_text, "assistant_id": "jarvis"}).execute()
+        log.exception("telegram chat err")
+        reply = f"Sorry, I hit an error: {str(e)[:100]}"
+
+    sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "user", "content": text, "assistant_id": "jarvis"}).execute()
     sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "assistant", "content": reply, "assistant_id": "jarvis"}).execute()
-    # Send reply via Telegram Bot API
-    if TELEGRAM_BOT_TOKEN:
-        async with httpx.AsyncClient(timeout=10) as cli:
-            await cli.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                           json={"chat_id": telegram_user_id, "text": reply})
-    return {"ok": True, "reply": reply}
-
-# ============ DISCORD PLUGIN ============
-@api_router.get("/plugins/discord/invite-url")
-async def discord_invite_url(user=Depends(get_current_user)):
-    code = _gen_code()
-    _discord_link_codes[code] = user["id"]
-    invite_url = f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}&permissions=2048&scope=bot" if DISCORD_CLIENT_ID else "https://discord.com/developers/applications"
-    return {"invite_url": invite_url, "code": code}
-
-@api_router.post("/plugins/discord/message")
-async def discord_incoming(payload: dict):
-    """Webhook: incoming message from Discord → route to Jarvis AI."""
-    discord_user_id = str(payload.get("discord_user_id", ""))
-    message_text = payload.get("message", "")
-    channel_id = payload.get("channel_id", "")
-    if not discord_user_id or not message_text:
-        return {"ok": False}
-    rows = sb.table("jarvis_plugins").select("*").eq("plugin_id", "discord").execute().data
-    uid = None
-    for row in rows:
-        meta = row.get("metadata") or {}
-        if str(meta.get("discord_user_id", "")) == discord_user_id:
-            uid = row["user_id"]; break
-    if not uid:
-        return {"ok": False, "error": "User not linked"}
-    try:
-        sysm = ASSISTANT_PERSONAS["jarvis"] + "\n\nUser is messaging via Discord. Keep replies concise."
-        res = await router_call("chat", sysm, message_text, sb=sb)
-        reply = res["content"]
-    except Exception as e:
-        reply = f"Error: {str(e)[:100]}"
-    return {"ok": True, "reply": reply}
+    await _tg_send(chat_id, reply)
+    return {"ok": True}
 
 # ============ BILLING (STRIPE) ============
 PLAN_LIMITS = {

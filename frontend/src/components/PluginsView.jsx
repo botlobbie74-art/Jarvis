@@ -8,7 +8,7 @@ export default function PluginsView() {
   const [plugins, setPlugins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pendingId, setPendingId] = useState(null);
-  const [modal, setModal] = useState(null); // { type: 'telegram'|'discord', data }
+  const [modal, setModal] = useState(null); // { type: 'telegram', data }
   const { toast } = useToast();
 
   const load = async () => {
@@ -60,14 +60,6 @@ export default function PluginsView() {
         return;
       }
 
-      // Discord — show connect modal
-      if (p.id === 'discord' && p.status !== 'connected') {
-        const { data } = await api.get('/plugins/discord/invite-url');
-        setModal({ type: 'discord', inviteUrl: data.invite_url, code: data.code });
-        setPendingId(null);
-        return;
-      }
-
       const action = p.status === 'connected' ? 'disconnect' : 'connect';
       await api.post('/plugins/toggle', { plugin_id: p.id, plugin_name: p.name, action });
       toast({
@@ -78,7 +70,7 @@ export default function PluginsView() {
     } catch (e) {
       toast({ title: 'Failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
     } finally {
-      if (!['google', 'telegram', 'discord'].includes(p.id)) setPendingId(null);
+      if (!['google', 'telegram'].includes(p.id)) setPendingId(null);
       else if (p.id === 'google') { /* handled in callback */ }
     }
   };
@@ -126,13 +118,11 @@ export default function PluginsView() {
                   )}
                 </div>
 
-                {/* Special badge for Telegram/Discord */}
-                {(p.id === 'telegram' || p.id === 'discord') && p.status !== 'connected' && (
+                {/* Special badge for Telegram */}
+                {p.id === 'telegram' && p.status !== 'connected' && (
                   <div className="mb-3 px-2 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
                     <p className="text-[11px] text-cyan-400">
-                      {p.id === 'telegram'
-                        ? '💬 Message Jarvis directly from Telegram'
-                        : '🤖 Talk to Jarvis from any Discord server'}
+                      💬 Message Jarvis directly from Telegram
                     </p>
                   </div>
                 )}
