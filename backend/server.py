@@ -12,6 +12,7 @@ from passlib.context import CryptContext
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 from supabase import create_client, Client
 from github import Github, GithubException
+from llm_router import llm_call as router_call
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -424,6 +425,104 @@ async def google_callback(code: str = None, state: str = None, error: str = None
             d2["id"] = str(uuid.uuid4())
             sb.table("jarvis_plugins").insert(d2).execute()
     return HTMLResponse("<script>window.close()</script><p>Google connected. You can close this window.</p>")
+
+# ============ MULTI-AGENT JOBS / STATE ============
+class JobIn(BaseModel):
+    project_id: str
+    agent_type: str  # planner | coder | tester | reviewer
+    payload: dict = {}
+
+@api_router.get("/llm/providers")
+async def llm_providers_status(user=Depends(get_current_user)):
+    from llm_router import PROVIDERS, _cooldowns
+    out = []
+    for p in PROVIDERS:
+        configured = bool(os.environ.get(p["key_env"]))
+        cd = _cooldowns.get(p["name"], 0)
+        out.append({"name": p["name"], "model": p["model"], "configured": configured,
+                    "in_cooldown": cd > datetime.now(timezone.utc).timestamp(),
+                    "roles": p["roles"]})
+    return out
+
+@api_router.post("/llm/test")
+async def llm_test(payload: dict, user=Depends(get_current_user)):
+    role = payload.get("role", "chat")
+    msg = payload.get("message", "Say hi in one short sentence.")
+    try:
+        res = await router_call(role, "You are Jarvis.", msg, sb=sb)
+        return res
+    except Exception as e:
+        raise HTTPException(500, str(e)[:300])
+
+@api_router.get("/projects/{pid}/state")
+async def get_project_state(pid: str, user=Depends(get_current_user)):
+    proj = sb.table("jarvis_projects").select("id").eq("id", pid).eq("user_id", user["id"]).execute()
+    if not proj.data: raise HTTPException(404, "Not found")
+    st = sb.table("jarvis_project_state").select("*").eq("project_id", pid).execute()
+    if not st.data:
+        return {"project_id": pid, "current_phase": "planning", "completed_steps": [],
+                "pending_steps": [], "decisions": [], "blockers": [], "last_summary": ""}
+    return st.data[0]
+
+@api_router.get("/projects/{pid}/jobs")
+async def list_jobs(pid: str, user=Depends(get_current_user)):
+    proj = sb.table("jarvis_projects").select("id").eq("id", pid).eq("user_id", user["id"]).execute()
+    if not proj.data: raise HTTPException(404, "Not found")
+    jobs = sb.table("jarvis_agent_jobs").select("*").eq("project_id", pid).order("created_at", desc=True).limit(50).execute().data
+    return jobs
+
+@api_router.post("/projects/{pid}/jobs")
+async def enqueue_job(pid: str, payload: JobIn, user=Depends(get_current_user)):
+    proj = sb.table("jarvis_projects").select("id").eq("id", pid).eq("user_id", user["id"]).execute()
+    if not proj.data: raise HTTPException(404, "Not found")
+    job = {"id": str(uuid.uuid4()), "project_id": pid, "agent_type": payload.agent_type,
+           "status": "queued", "payload": payload.payload}
+    sb.table("jarvis_agent_jobs").insert(job).execute()
+    # Fire-and-forget worker
+    asyncio.create_task(_run_job(job["id"]))
+    return job
+
+import asyncio
+async def _run_job(job_id: str):
+    j = sb.table("jarvis_agent_jobs").select("*").eq("id", job_id).single().execute().data
+    if not j: return
+    sb.table("jarvis_agent_jobs").update({"status": "processing", "started_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
+    try:
+        proj = sb.table("jarvis_projects").select("*").eq("id", j["project_id"]).single().execute().data
+        agent = j["agent_type"]
+        if agent == "planner":
+            sysm = "You are the Planner sub-agent. Output STRICT JSON {steps:[{id,title,description,depends_on}]}."
+            res = await router_call("planner", sysm, f"Plan: {proj.get('description','')}", sb=sb)
+            sb.table("jarvis_project_state").upsert({"project_id": j["project_id"], "current_phase": "coding",
+                                                     "last_summary": res["content"][:500],
+                                                     "updated_at": datetime.now(timezone.utc).isoformat()}).execute()
+        elif agent == "coder":
+            path = j["payload"].get("path", "README.md")
+            purpose = j["payload"].get("purpose", "")
+            sysm = "You are the Coder sub-agent. Output ONLY file content, no markdown fences."
+            res = await router_call("coder", sysm, f"File: {path}\nPurpose: {purpose}\nProject: {proj.get('description','')}", sb=sb)
+            content = res["content"].strip()
+            if content.startswith("```"):
+                lines = content.split("\n"); content = "\n".join(lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:])
+            existing = sb.table("jarvis_project_files").select("id").eq("project_id", j["project_id"]).eq("path", path).execute()
+            if existing.data:
+                sb.table("jarvis_project_files").update({"content": content, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("project_id", j["project_id"]).eq("path", path).execute()
+            else:
+                sb.table("jarvis_project_files").insert({"id": str(uuid.uuid4()), "project_id": j["project_id"], "path": path, "content": content, "language": "plaintext"}).execute()
+        elif agent == "tester":
+            sysm = "You are the Tester sub-agent. Output curl/playwright commands as JSON {tests:[...]}."
+            res = await router_call("tester", sysm, j["payload"].get("instruction", "test all routes"), sb=sb)
+        elif agent == "reviewer":
+            sysm = "You are the Reviewer sub-agent. Review and critique. Return JSON {issues:[],suggestions:[]}."
+            res = await router_call("reviewer", sysm, j["payload"].get("instruction", "review project"), sb=sb)
+        else:
+            res = {"content": "unknown agent"}
+        sb.table("jarvis_agent_jobs").update({"status": "done", "result": {"content": res["content"][:4000], "provider": res.get("provider")},
+                                              "finished_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
+    except Exception as e:
+        log.exception("job err")
+        sb.table("jarvis_agent_jobs").update({"status": "failed", "error": str(e)[:400],
+                                              "finished_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
 
 # ============ APP ============
 app.include_router(api_router)
