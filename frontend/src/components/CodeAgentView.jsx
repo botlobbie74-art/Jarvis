@@ -37,7 +37,15 @@ export default function CodeAgentView() {
       setProjects(data || []);
     } catch (e) {} finally { setLoading(false); }
   };
-  useEffect(() => { loadProjects(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    loadProjects();
+    // Check if Jarvis sent a builder instruction from chat
+    const prompt = sessionStorage.getItem('jarvis_builder_prompt');
+    if (prompt) {
+      sessionStorage.removeItem('jarvis_builder_prompt');
+      setDescription(prompt);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openProject = async (id) => {
     try {

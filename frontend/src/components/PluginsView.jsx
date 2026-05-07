@@ -8,7 +8,7 @@ export default function PluginsView() {
   const [plugins, setPlugins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pendingId, setPendingId] = useState(null);
-  const [modal, setModal] = useState(null); // { type: 'telegram'|'slack'|'notion', ... }
+  const [modal, setModal] = useState(null); // { type: 'telegram', ... }
   const { toast } = useToast();
 
   const load = async () => {
@@ -59,20 +59,6 @@ export default function PluginsView() {
         return;
       }
 
-      // Slack — show token entry modal
-      if (p.id === 'slack' && p.status !== 'connected') {
-        setModal({ type: 'slack', token: '' });
-        setPendingId(null);
-        return;
-      }
-
-      // Notion — show token entry modal
-      if (p.id === 'notion' && p.status !== 'connected') {
-        setModal({ type: 'notion', token: '' });
-        setPendingId(null);
-        return;
-      }
-
       const action = p.status === 'connected' ? 'disconnect' : 'connect';
       await api.post('/plugins/toggle', { plugin_id: p.id, plugin_name: p.name, action });
       toast({
@@ -83,32 +69,8 @@ export default function PluginsView() {
     } catch (e) {
       toast({ title: 'Failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
     } finally {
-      if (!['google', 'telegram', 'slack', 'notion'].includes(p.id)) setPendingId(null);
+      if (!['google', 'telegram'].includes(p.id)) setPendingId(null);
       else if (p.id === 'google') { /* handled in callback */ }
-    }
-  };
-
-  const connectSlack = async () => {
-    if (!modal?.token?.trim()) return;
-    try {
-      await api.post('/plugins/slack/connect', { bot_token: modal.token.trim() });
-      setModal(null);
-      await load();
-      toast({ title: 'Slack connected! 🎉', description: 'Jarvis can now send messages to your Slack.' });
-    } catch (e) {
-      toast({ title: 'Failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
-    }
-  };
-
-  const connectNotion = async () => {
-    if (!modal?.token?.trim()) return;
-    try {
-      await api.post('/plugins/notion/connect', { api_key: modal.token.trim() });
-      setModal(null);
-      await load();
-      toast({ title: 'Notion connected! 🎉', description: 'Jarvis can now read and write your Notion pages.' });
-    } catch (e) {
-      toast({ title: 'Failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
     }
   };
 
@@ -155,29 +117,10 @@ export default function PluginsView() {
                   )}
                 </div>
 
-                {/* Special badge for Telegram */}
                 {p.id === 'telegram' && p.status !== 'connected' && (
                   <div className="mb-3 px-2 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
                     <p className="text-[11px] text-cyan-400">
                       💬 Message Jarvis directly from Telegram
-                    </p>
-                  </div>
-                )}
-
-                {/* Special badge for Slack */}
-                {p.id === 'slack' && p.status !== 'connected' && (
-                  <div className="mb-3 px-2 py-1.5 rounded-lg bg-[#4A154B]/30 border border-[#4A154B]/40">
-                    <p className="text-[11px] text-purple-300">
-                      🔔 Let Jarvis send notifications to your Slack
-                    </p>
-                  </div>
-                )}
-
-                {/* Special badge for Notion */}
-                {p.id === 'notion' && p.status !== 'connected' && (
-                  <div className="mb-3 px-2 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                    <p className="text-[11px] text-white/60">
-                      📝 Let Jarvis read and update your Notion pages
                     </p>
                   </div>
                 )}
@@ -257,88 +200,6 @@ export default function PluginsView() {
             <p className="text-[11px] text-white/30 mt-4 text-center">
               After connecting, you can message Jarvis any time from Telegram.
             </p>
-          </div>
-        </div>
-      )}
-
-      {/* Slack Connect Modal */}
-      {modal?.type === 'slack' && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111114] border border-white/10 rounded-2xl p-6 max-w-md w-full">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-[18px] font-semibold text-white">Connect Slack</h3>
-              <button onClick={() => setModal(null)} className="text-white/40 hover:text-white">
-                <XIcon className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="p-3 rounded-xl bg-[#4A154B]/20 border border-[#4A154B]/30">
-                <p className="text-[12px] text-purple-300">
-                  Create a Slack app at <a href="https://api.slack.com/apps" target="_blank" rel="noreferrer" className="underline">api.slack.com/apps</a>, install it to your workspace, and paste the <strong>Bot User OAuth Token</strong> (starts with <code>xoxb-</code>) below.
-                </p>
-              </div>
-
-              <div>
-                <label className="text-[12px] text-white/60 mb-1 block">Bot OAuth Token</label>
-                <input
-                  type="password"
-                  placeholder="xoxb-..."
-                  value={modal.token}
-                  onChange={(e) => setModal((m) => ({ ...m, token: e.target.value }))}
-                  className="w-full h-10 px-3 rounded-lg bg-white/5 border border-white/10 text-white text-[13px] outline-none focus:border-white/30 placeholder:text-white/20"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={connectSlack}
-              disabled={!modal.token?.trim()}
-              className="w-full mt-4 h-10 rounded-lg bg-[#4A154B] hover:bg-[#611f69] text-white text-[13px] font-medium transition-colors disabled:opacity-40"
-            >
-              Connect Slack
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Notion Connect Modal */}
-      {modal?.type === 'notion' && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111114] border border-white/10 rounded-2xl p-6 max-w-md w-full">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-[18px] font-semibold text-white">Connect Notion</h3>
-              <button onClick={() => setModal(null)} className="text-white/40 hover:text-white">
-                <XIcon className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                <p className="text-[12px] text-white/60">
-                  Go to <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer" className="underline text-white/80">notion.so/my-integrations</a>, create a new integration, and paste the <strong>Internal Integration Secret</strong> below.
-                </p>
-              </div>
-
-              <div>
-                <label className="text-[12px] text-white/60 mb-1 block">Integration Secret</label>
-                <input
-                  type="password"
-                  placeholder="secret_..."
-                  value={modal.token}
-                  onChange={(e) => setModal((m) => ({ ...m, token: e.target.value }))}
-                  className="w-full h-10 px-3 rounded-lg bg-white/5 border border-white/10 text-white text-[13px] outline-none focus:border-white/30 placeholder:text-white/20"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={connectNotion}
-              disabled={!modal.token?.trim()}
-              className="w-full mt-4 h-10 rounded-lg bg-white hover:bg-white/90 text-slate-900 text-[13px] font-medium transition-colors disabled:opacity-40"
-            >
-              Connect Notion
-            </button>
           </div>
         </div>
       )}

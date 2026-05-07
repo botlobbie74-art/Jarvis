@@ -21,7 +21,7 @@ export default function Dashboard() {
   const [view, setView] = useState('chat');
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
-  const [activeAssistant, setActiveAssistant] = useState('jarvis');
+  const [activeAssistant] = useState('jarvis');
 
   useEffect(() => {
     if (!loading && !user) navigate('/');
@@ -164,10 +164,13 @@ export default function Dashboard() {
         {view === 'chat' && (
           <ChatView
             sessionId={activeSessionId}
-            assistantId={activeAssistant}
-            onAssistantChange={setActiveAssistant}
             onNewChat={newChat}
             onSessionUpdated={loadSessions}
+            onOpenBuilder={(action) => {
+              setView('builder');
+              // Pass action to builder via sessionStorage so CodeAgentView can pick it up
+              if (action?.description) sessionStorage.setItem('jarvis_builder_prompt', action.description);
+            }}
           />
         )}
         {view === 'plugins' && <PluginsView />}

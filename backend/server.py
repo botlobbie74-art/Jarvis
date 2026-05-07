@@ -196,29 +196,78 @@ async def delete_session(session_id: str, user=Depends(get_current_user)):
     sb.table("jarvis_chat_sessions").delete().eq("id", session_id).execute()
     return {"ok": True}
 
+def _summarize_project(p: dict) -> str:
+    plan = p.get("plan") or {}
+    tech = plan.get("tech_stack", {})
+    tech_str = f"{tech.get('frontend', '')} / {tech.get('backend', '')} / {tech.get('database', '')}".strip(" /")
+    steps_done = len([s for s in plan.get("steps", []) if s.get("done")])
+    steps_total = len(plan.get("steps", []))
+    files_count = 0
+    try:
+        files_count = sb.table("jarvis_project_files").select("id", count="exact").eq("project_id", p["id"]).execute().count or 0
+    except Exception: pass
+    return (
+        f"- Project: {p['name']} (status: {p.get('status', 'unknown')})\n"
+        f"  Description: {p.get('description', '')[:120]}\n"
+        f"  Tech: {tech_str or 'not planned yet'}\n"
+        f"  Progress: {steps_done}/{steps_total} steps, {files_count} files generated\n"
+        f"  Summary: {plan.get('summary', '')[:150]}"
+    )
+
+BUILDER_AWARE_SYSTEM = """You are Jarvis, an autonomous AI engineer and personal assistant.
+
+You have FULL visibility into the user's app builder projects. When they ask about a project, use the project context provided to give an accurate, specific summary.
+
+BUILDER INTEGRATION:
+When the user asks you to do something in the builder (e.g., "add a feature", "change the design", "fix a bug in the landing page"), you MUST respond in this format:
+
+First, give a brief natural reply confirming what you're going to do.
+Then on a new line, output EXACTLY:
+BUILDER_ACTION: <clear one-sentence instruction for the builder>
+
+Example:
+User: "Tell builder to add a dark mode toggle to my app"
+Jarvis: Sure! I'll instruct the builder to add a dark mode toggle.
+BUILDER_ACTION: Add a dark mode toggle button to the navbar that switches between light and dark themes.
+
+When answering questions (not triggering actions), respond normally without BUILDER_ACTION.
+Always be concise and direct."""
+
 @api_router.post("/chat/send")
 async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
     _check_quota(user["id"], "chat")
     sess = sb.table("jarvis_chat_sessions").select("*").eq("id", payload.session_id).eq("user_id", user["id"]).limit(1).execute()
     if not sess.data: raise HTTPException(404, "Session not found")
-    aid = payload.assistant_id if payload.assistant_id in ASSISTANT_PERSONAS else "jarvis"
+
     user_msg = {"id": str(uuid.uuid4()), "session_id": payload.session_id, "role": "user",
-                "content": payload.message, "assistant_id": aid}
+                "content": payload.message, "assistant_id": "jarvis"}
     sb.table("jarvis_chat_messages").insert(user_msg).execute()
 
-    # Use custom persona if defined, else default
-    sysm = ASSISTANT_PERSONAS[aid]
+    # Build system prompt with project context
+    sysm = BUILDER_AWARE_SYSTEM
     try:
-        custom = sb.table("jarvis_personas").select("*").eq("user_id", user["id"]).eq("assistant_id", aid).execute()
+        custom = sb.table("jarvis_personas").select("*").eq("user_id", user["id"]).eq("assistant_id", "jarvis").execute()
         if custom.data and custom.data[0].get("system_prompt"):
-            sysm = custom.data[0]["system_prompt"]
+            sysm = custom.data[0]["system_prompt"] + "\n\n" + BUILDER_AWARE_SYSTEM
     except Exception: pass
-    plugs = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("status", "connected").execute()
-    if plugs.data:
-        names = ", ".join(p["plugin_name"] for p in plugs.data)
-        sysm += f"\n\nUser has these tools connected: {names}."
+
+    # Inject project context
     try:
-        sysm = sysm
+        projects = sb.table("jarvis_projects").select("*").eq("user_id", user["id"]).order("updated_at", desc=True).limit(10).execute().data
+        if projects:
+            project_ctx = "\n\nUSER'S CURRENT PROJECTS:\n" + "\n".join(_summarize_project(p) for p in projects)
+            sysm += project_ctx
+    except Exception: pass
+
+    # Inject connected plugins
+    try:
+        plugs = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("status", "connected").execute()
+        if plugs.data:
+            names = ", ".join(p["plugin_name"] for p in plugs.data)
+            sysm += f"\n\nUser has these tools connected: {names}."
+    except Exception: pass
+
+    try:
         prior = sb.table("jarvis_chat_messages").select("*").eq("session_id", payload.session_id).order("created_at").execute().data
         prior = [p for p in prior if p["id"] != user_msg["id"]][-10:]
         ctx = "".join(f"\n{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in prior)
@@ -227,14 +276,29 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
         reply = res["content"]
     except Exception as e:
         log.exception("LLM err"); reply = f"(LLM error: {str(e)[:200]})"
+
+    # Detect BUILDER_ACTION in response
+    builder_action = None
+    display_content = reply
+    if "BUILDER_ACTION:" in reply:
+        parts = reply.split("BUILDER_ACTION:", 1)
+        display_content = parts[0].strip()
+        action_text = parts[1].strip().split("\n")[0].strip()
+        builder_action = {"description": action_text, "type": "instruction"}
+
     asst = {"id": str(uuid.uuid4()), "session_id": payload.session_id, "role": "assistant",
-            "content": reply, "assistant_id": aid}
+            "content": reply, "assistant_id": "jarvis"}
     sb.table("jarvis_chat_messages").insert(asst).execute()
     _bump_usage(user["id"], "chat")
     title = sess.data[0].get("title") or "New chat"
     if title == "New chat": title = payload.message[:60]
-    sb.table("jarvis_chat_sessions").update({"updated_at": datetime.now(timezone.utc).isoformat(), "title": title, "assistant_id": aid}).eq("id", payload.session_id).execute()
-    return sb.table("jarvis_chat_messages").select("*").eq("id", asst["id"]).single().execute().data
+    sb.table("jarvis_chat_sessions").update({"updated_at": datetime.now(timezone.utc).isoformat(), "title": title, "assistant_id": "jarvis"}).eq("id", payload.session_id).execute()
+
+    row = sb.table("jarvis_chat_messages").select("*").eq("id", asst["id"]).single().execute().data
+    row["display_content"] = display_content
+    if builder_action:
+        row["builder_action"] = builder_action
+    return row
 
 # ============ PLUGINS ============
 DEFAULT_PLUGINS = [
@@ -243,8 +307,6 @@ DEFAULT_PLUGINS = [
     {"id": "youtube", "name": "YouTube", "description": "Search and manage videos", "category": "media"},
     {"id": "github", "name": "GitHub", "description": "Repos, issues, pull requests", "category": "developer"},
     {"id": "telegram", "name": "Telegram", "description": "Message Jarvis from Telegram", "category": "messaging"},
-    {"id": "slack", "name": "Slack", "description": "Send messages and notifications to Slack channels", "category": "messaging"},
-    {"id": "notion", "name": "Notion", "description": "Read and write Notion pages and databases", "category": "productivity"},
 ]
 
 @api_router.get("/plugins")
@@ -767,74 +829,6 @@ async def telegram_webhook(payload: dict):
     sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "assistant", "content": reply, "assistant_id": "jarvis"}).execute()
     await _tg_send(chat_id, reply)
     return {"ok": True}
-
-# ============ SLACK PLUGIN ============
-SLACK_BOT_TOKEN = os.environ.get('SLACK_BOT_TOKEN', '')
-
-@api_router.post("/plugins/slack/connect")
-async def slack_connect(payload: dict, user=Depends(get_current_user)):
-    """Store Slack bot token for this user."""
-    token = (payload.get("bot_token") or "").strip()
-    if not token:
-        raise HTTPException(400, "bot_token required")
-    meta = {"slack_bot_token": token}
-    existing = sb.table("jarvis_plugins").select("id").eq("user_id", user["id"]).eq("plugin_id", "slack").execute()
-    doc = {"user_id": user["id"], "plugin_id": "slack", "plugin_name": "Slack",
-           "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta}
-    if existing.data:
-        sb.table("jarvis_plugins").update(doc).eq("user_id", user["id"]).eq("plugin_id", "slack").execute()
-    else:
-        doc["id"] = str(uuid.uuid4())
-        sb.table("jarvis_plugins").insert(doc).execute()
-    return {"ok": True}
-
-@api_router.post("/plugins/slack/send")
-async def slack_send(payload: dict, user=Depends(get_current_user)):
-    """Send a message to a Slack channel on behalf of the user."""
-    rows = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("plugin_id", "slack").execute().data
-    if not rows:
-        raise HTTPException(400, "Slack not connected")
-    token = (rows[0].get("metadata") or {}).get("slack_bot_token", SLACK_BOT_TOKEN)
-    channel = payload.get("channel", "#general")
-    text = payload.get("text", "")
-    async with httpx.AsyncClient(timeout=10) as cli:
-        r = await cli.post("https://slack.com/api/chat.postMessage",
-                           headers={"Authorization": f"Bearer {token}"},
-                           json={"channel": channel, "text": text})
-    return r.json()
-
-# ============ NOTION PLUGIN ============
-NOTION_API_KEY = os.environ.get('NOTION_API_KEY', '')
-
-@api_router.post("/plugins/notion/connect")
-async def notion_connect(payload: dict, user=Depends(get_current_user)):
-    """Store Notion integration token for this user."""
-    token = (payload.get("api_key") or "").strip()
-    if not token:
-        raise HTTPException(400, "api_key required")
-    meta = {"notion_api_key": token}
-    existing = sb.table("jarvis_plugins").select("id").eq("user_id", user["id"]).eq("plugin_id", "notion").execute()
-    doc = {"user_id": user["id"], "plugin_id": "notion", "plugin_name": "Notion",
-           "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta}
-    if existing.data:
-        sb.table("jarvis_plugins").update(doc).eq("user_id", user["id"]).eq("plugin_id", "notion").execute()
-    else:
-        doc["id"] = str(uuid.uuid4())
-        sb.table("jarvis_plugins").insert(doc).execute()
-    return {"ok": True}
-
-@api_router.post("/plugins/notion/search")
-async def notion_search(payload: dict, user=Depends(get_current_user)):
-    rows = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("plugin_id", "notion").execute().data
-    if not rows:
-        raise HTTPException(400, "Notion not connected")
-    token = (rows[0].get("metadata") or {}).get("notion_api_key", NOTION_API_KEY)
-    query = payload.get("query", "")
-    async with httpx.AsyncClient(timeout=10) as cli:
-        r = await cli.post("https://api.notion.com/v1/search",
-                           headers={"Authorization": f"Bearer {token}", "Notion-Version": "2022-06-28"},
-                           json={"query": query, "page_size": 10})
-    return r.json()
 
 # ============ BILLING (STRIPE) ============
 PLAN_LIMITS = {
