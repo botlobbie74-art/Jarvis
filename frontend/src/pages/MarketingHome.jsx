@@ -23,11 +23,14 @@ const PRICING = [
 
 const FEATURES = [
   { icon: Bot, title: 'Autonomous AI engineer', desc: 'Describe an app. Jarvis plans, codes, tests, and pushes it to GitHub — without a single line from you.' },
+  { icon: Globe, title: 'Web search built in', desc: 'Jarvis browses the web for you — finds answers, scrapes pages, summarizes articles, fact-checks before acting.' },
+  { icon: Calendar, title: 'Runs your tasks', desc: 'Background jobs that summarize emails, prep your morning briefing, follow up on leads — while you sleep.' },
+  { icon: Plug, title: 'Connected Google Workspace', desc: 'Reads your Sheets, drafts your Docs, schedules in Calendar, finds files in Drive — with one OAuth click.' },
   { icon: Hammer, title: 'Built-in IDE', desc: 'Real Monaco editor (the engine behind VS Code) lives inside Jarvis. Edit any generated file, save in one click.' },
   { icon: Zap, title: 'Multi-LLM router', desc: 'Routes every task to the best free model — Gemini Flash for planning, Mistral Codestral for code, Groq Llama for chat. Auto-fallback on quota.' },
-  { icon: Plug, title: 'Connected to your stack', desc: 'Google Workspace, GitHub, WhatsApp, YouTube — Jarvis acts on your accounts, not just talks about them.' },
-  { icon: MessageSquare, title: 'Background WhatsApp', desc: 'Talk to Jarvis from WhatsApp. Replies, reminders, summaries — without the website open.' },
+  { icon: MessageSquare, title: 'WhatsApp (soon)', desc: 'Talk to Jarvis from WhatsApp. Replies, reminders, summaries — without the website open. Launching shortly.' },
   { icon: Code2, title: 'Code shipped to your GitHub', desc: 'Every project gets its own repo on your account. Open the PR, deploy from there, own the code.' },
+  { icon: Sparkles, title: '5 specialized assistants', desc: 'Jarvis (tech), Judy (sales), Alfred (exec), Venus (content), Donna (personal) — each with their own brain.' },
 ];
 
 const HOW = [
@@ -75,10 +78,10 @@ export default function MarketingHome() {
           </div>
           <h1 className="text-[56px] md:text-[72px] font-bold tracking-tight text-slate-900 leading-[1.05]">
             Your autonomous<br />
-            <span className="bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">AI engineer.</span>
+            <span className="bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">AI co-worker.</span>
           </h1>
           <p className="mt-6 text-[18px] text-slate-600 max-w-2xl mx-auto">
-            Describe an app. Jarvis plans it, codes it, tests it, and ships it to your GitHub — all on its own. No prompts. No babysitting.
+            Jarvis builds your apps, runs your tasks, browses the web, manages your Google Workspace — and pushes everything to your GitHub. All on its own.
           </p>
           <div className="mt-10 flex items-center justify-center gap-3">
             <button onClick={() => navigate('/login?signup=1')} className="h-12 px-6 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-medium flex items-center gap-2 transition-colors">

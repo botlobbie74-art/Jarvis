@@ -293,9 +293,10 @@ async def build_project(pid: str, user=Depends(get_current_user)):
     proj = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).single().execute().data
     if not proj: raise HTTPException(404, "Not found")
     plan = proj["plan"] or {}
-    files_to_gen = plan.get("files_to_generate", [])[:12]  # cap to keep within latency
+    files_to_gen = plan.get("files_to_generate", [])[:12]
     sb.table("jarvis_projects").update({"status": "building"}).eq("id", pid).execute()
     generated = []
+    file_actions = []  # for activity feed
     for f in files_to_gen:
         path = f.get("path") or "untitled.txt"
         purpose = f.get("purpose", "")
@@ -304,17 +305,25 @@ async def build_project(pid: str, user=Depends(get_current_user)):
             res = await router_call("coder", CODE_SYSTEM, prompt, sb=sb)
             content = res["content"].strip()
             if content.startswith("```"):
-                # strip code fence
-                lines = content.split("\n")
-                content = "\n".join(lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:])
+                lines = content.split("\n"); content = "\n".join(lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:])
             lang = "javascript" if path.endswith((".js", ".jsx")) else "typescript" if path.endswith((".ts", ".tsx")) else "python" if path.endswith(".py") else "json" if path.endswith(".json") else "css" if path.endswith(".css") else "html" if path.endswith(".html") else "sql" if path.endswith(".sql") else "plaintext"
-            row = {"id": str(uuid.uuid4()), "project_id": pid, "path": path, "content": content, "language": lang}
             existing = sb.table("jarvis_project_files").select("id").eq("project_id", pid).eq("path", path).execute()
             if existing.data:
                 sb.table("jarvis_project_files").update({"content": content, "language": lang, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("project_id", pid).eq("path", path).execute()
+                file_actions.append({"action": "edited", "path": path, "at": datetime.now(timezone.utc).isoformat()})
             else:
-                sb.table("jarvis_project_files").insert(row).execute()
+                sb.table("jarvis_project_files").insert({"id": str(uuid.uuid4()), "project_id": pid, "path": path, "content": content, "language": lang}).execute()
+                file_actions.append({"action": "created", "path": path, "at": datetime.now(timezone.utc).isoformat()})
             generated.append(path)
+            # Persist a per-file job for the activity feed
+            try:
+                job_row = {"id": str(uuid.uuid4()), "project_id": pid, "agent_type": "coder", "status": "done",
+                           "payload": {"path": path, "purpose": purpose},
+                           "result": {"actions": [file_actions[-1]], "provider": res.get("provider")},
+                           "started_at": datetime.now(timezone.utc).isoformat(),
+                           "finished_at": datetime.now(timezone.utc).isoformat()}
+                sb.table("jarvis_agent_jobs").insert(job_row).execute()
+            except Exception: pass
         except Exception as e:
             log.exception("file gen err %s", path)
     sb.table("jarvis_projects").update({"status": "ready", "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", pid).execute()
@@ -536,8 +545,10 @@ async def _run_job(job_id: str):
             existing = sb.table("jarvis_project_files").select("id").eq("project_id", j["project_id"]).eq("path", path).execute()
             if existing.data:
                 sb.table("jarvis_project_files").update({"content": content, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("project_id", j["project_id"]).eq("path", path).execute()
+                res["actions"] = [{"action": "edited", "path": path}]
             else:
                 sb.table("jarvis_project_files").insert({"id": str(uuid.uuid4()), "project_id": j["project_id"], "path": path, "content": content, "language": "plaintext"}).execute()
+                res["actions"] = [{"action": "created", "path": path}]
         elif agent == "tester":
             sysm = "You are the Tester sub-agent. Output curl/playwright commands as JSON {tests:[...]}."
             res = await router_call("tester", sysm, j["payload"].get("instruction", "test all routes"), sb=sb)

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
 import Editor from '@monaco-editor/react';
-import { Loader2, Plus, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Check, Hammer, Rocket } from 'lucide-react';
+import { Loader2, Plus, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Check, Hammer, Rocket, FilePlus, FilePenLine } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
 export default function CodeAgentView() {
@@ -275,17 +275,29 @@ export default function CodeAgentView() {
             {jobs.length === 0 && (
               <div className="px-4 py-2 text-[12px] text-slate-400">No jobs yet.</div>
             )}
-            {jobs.slice(0, 12).map((j) => (
-              <div key={j.id} className="px-4 py-1.5 text-[11px] flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                  j.status === 'done' ? 'bg-emerald-500' :
-                  j.status === 'processing' ? 'bg-amber-500 animate-pulse' :
-                  j.status === 'failed' ? 'bg-red-500' : 'bg-slate-300'
-                }`} />
-                <span className="font-medium text-slate-700 capitalize">{j.agent_type}</span>
-                <span className="text-slate-400 truncate flex-1">{j.status}</span>
-              </div>
-            ))}
+            {jobs.slice(0, 25).map((j) => {
+              const actions = j.result?.actions || [];
+              if (actions.length > 0) {
+                return actions.map((a, i) => (
+                  <div key={`${j.id}-${i}`} className="px-4 py-1.5 flex items-center gap-2 hover:bg-slate-50 rounded mx-1">
+                    {a.action === 'created' ? <FilePlus className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" /> : <FilePenLine className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" />}
+                    <span className={`text-[11px] uppercase tracking-wider font-semibold ${a.action === 'created' ? 'text-emerald-600' : 'text-cyan-600'}`}>{a.action}</span>
+                    <code className="text-[11px] font-mono text-fuchsia-600 truncate flex-1">{a.path}</code>
+                  </div>
+                ));
+              }
+              return (
+                <div key={j.id} className="px-4 py-1.5 text-[11px] flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                    j.status === 'done' ? 'bg-emerald-500' :
+                    j.status === 'processing' ? 'bg-amber-500 animate-pulse' :
+                    j.status === 'failed' ? 'bg-red-500' : 'bg-slate-300'
+                  }`} />
+                  <span className="font-medium text-slate-700 capitalize">{j.agent_type}</span>
+                  <span className="text-slate-400 truncate flex-1">{j.status}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 

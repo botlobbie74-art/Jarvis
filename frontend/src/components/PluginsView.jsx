@@ -24,6 +24,10 @@ export default function PluginsView() {
   useEffect(() => { load(); }, []);
 
   const toggle = async (p) => {
+    if (p.id === 'whatsapp') {
+      toast({ title: 'WhatsApp coming soon', description: 'Background messaging is launching shortly.' });
+      return;
+    }
     setPendingId(p.id);
     try {
       // Real Google OAuth
@@ -117,12 +121,14 @@ export default function PluginsView() {
                   onClick={() => toggle(p)}
                   disabled={pendingId === p.id}
                   className={`w-full h-10 rounded-lg text-[13px] font-medium transition-colors ${
-                    p.status === 'connected'
+                    p.id === 'whatsapp'
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200 cursor-default'
+                      : p.status === 'connected'
                       ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                       : 'bg-slate-900 hover:bg-slate-800 text-white'
                   } disabled:opacity-60`}
                 >
-                  {pendingId === p.id ? 'Working...' : p.status === 'connected' ? 'Disconnect' : 'Connect'}
+                  {p.id === 'whatsapp' ? 'Coming soon' : pendingId === p.id ? 'Working...' : p.status === 'connected' ? 'Disconnect' : 'Connect'}
                 </button>
               </div>
             ))}
