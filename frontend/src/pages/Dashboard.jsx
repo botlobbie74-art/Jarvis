@@ -21,7 +21,7 @@ export default function Dashboard() {
   const [view, setView] = useState('chat');
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
-  const [activeAssistant] = useState('jarvis');
+
 
   useEffect(() => {
     if (!loading && !user) navigate('/');
@@ -119,7 +119,7 @@ export default function Dashboard() {
             return (
               <button
                 key={s.id}
-                onClick={() => { setActiveSessionId(s.id); setActiveAssistant(s.assistant_id); setView('chat'); }}
+                onClick={() => { setActiveSessionId(s.id); setView('chat'); }}
                 className={`group w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left text-[13px] mb-1 transition-colors ${
                   active ? 'bg-white/10' : 'hover:bg-white/5'
                 }`}
