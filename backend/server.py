@@ -263,7 +263,8 @@ Always be concise, proactive, and keep the user informed via Telegram about the 
 
 @api_router.post("/chat/send")
 async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
-    _check_quota(user["id"], "chat")
+    # check credits instead of quota
+    _check_credits(user["id"], required=1.0) # Minimum 1 credit to start chat
     sess = sb.table("jarvis_chat_sessions").select("*").eq("id", payload.session_id).eq("user_id", user["id"]).limit(1).execute()
     if not sess.data: raise HTTPException(404, "Session not found")
 
@@ -308,6 +309,12 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
         
         res = await router_call(agent_role, sysm, full, sb=sb)
         reply = res["content"]
+
+        # Calculate and consume credits based on tokens
+        tokens_used = res.get("usage", {}).get("total_tokens", 0)
+        credit_cost = tokens_used * TOKEN_TO_CREDIT_RATE
+        _consume_credits(user["id"], credit_cost, f"Chat message: {tokens_used} tokens")
+
         meta = {"agent_type": agent_role, "model": res.get("model"), "provider": res.get("provider")}
     except Exception as e:
         log.exception("LLM err"); reply = f"(LLM error: {str(e)[:200]})"
@@ -612,7 +619,8 @@ async def suggest_continuation(pid: str, user=Depends(get_current_user)):
 
 @api_router.post("/projects/{pid}/build")
 async def build_project(pid: str, user=Depends(get_current_user)):
-    _check_quota(user["id"], "build")
+    # check credits instead of quota
+    _check_credits(user["id"], required=BUILD_FLAT_FEE)
     proj = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).single().execute().data
     if not proj: raise HTTPException(404, "Not found")
     plan = proj["plan"] or {}
@@ -651,7 +659,24 @@ async def build_project(pid: str, user=Depends(get_current_user)):
         except Exception as e:
             log.exception("file gen err %s", path)
     sb.table("jarvis_projects").update({"status": "ready", "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", pid).execute()
-    _bump_usage(user["id"], "build")
+
+    # Calculate total tokens used across all generated files for the project build
+    total_tokens = 0
+    # Since we don't have the LLM responses stored, we'll estimate tokens
+    # or ideally, we should have collected them during the loop.
+    # For this implementation, we'll use a flat fee + estimated token cost based on generated content.
+
+    generated_content_len = 0
+    for path in generated:
+        f_data = sb.table("jarvis_project_files").select("content").eq("path", path).eq("project_id", pid).single().execute().data
+        if f_data:
+            generated_content_len += len(f_data.get("content", ""))
+
+    # Estimate 1 token approx 4 chars
+    estimated_tokens = generated_content_len // 4
+    build_token_cost = estimated_tokens * TOKEN_TO_CREDIT_RATE
+
+    _consume_credits(user["id"], BUILD_FLAT_FEE + build_token_cost, f"Project build {pid[:8]}: {estimated_tokens} tokens")
     # Update project state
     try:
         sb.table("jarvis_project_state").upsert({
@@ -1152,42 +1177,50 @@ async def telegram_webhook(payload: dict):
     await _tg_send(chat_id, reply)
     return {"ok": True}
 
-# ============ BILLING (STRIPE) ============
-PLAN_LIMITS = {
-    "free":    {"builds": 5,    "chat_messages": 100,  "plugins": ["google", "github", "google_search"]},
-    "starter": {"builds": 50,   "chat_messages": -1,   "plugins": "all"},
-    "pro":     {"builds": -1,   "chat_messages": -1,   "plugins": "all"},
+# ============ BILLING (CREDITS) ============
+CREDIT_PRICES = {
+    "1000": 10.0,
+    "5000": 40.0,
+    "10000": 70.0,
 }
 
-def _user_plan(uid: str) -> dict:
-    res = sb.table("jarvis_subscriptions").select("*").eq("user_id", uid).execute()
-    if res.data and res.data[0].get("status") in ("active", "trialing"):
-        return res.data[0]
-    return {"plan": "free", "status": "active"}
+# Token pricing: 1 credit = 1000 tokens (approx)
+# This is a rough mapping. In a real system, you might use different costs for input vs output.
+TOKEN_TO_CREDIT_RATE = 0.001
 
-def _period_key(): return datetime.now(timezone.utc).strftime("%Y-%m")
+# Cost per build: a flat fee in credits + token cost
+BUILD_FLAT_FEE = 5.0
 
-def _bump_usage(uid: str, kind: str, by: int = 1):
-    p = _period_key()
-    existing = sb.table("jarvis_usage_counters").select("*").eq("user_id", uid).eq("period", p).execute()
-    field = "builds_used" if kind == "build" else "chat_messages_used"
-    if existing.data:
-        cur = existing.data[0].get(field, 0) or 0
-        sb.table("jarvis_usage_counters").update({field: cur + by}).eq("user_id", uid).eq("period", p).execute()
-    else:
-        sb.table("jarvis_usage_counters").insert({"user_id": uid, "period": p, field: by}).execute()
+def _user_credits(uid: str) -> float:
+    res = sb.table("jarvis_users").select("credits").eq("id", uid).execute()
+    if res.data and res.data[0]:
+        return float(res.data[0].get("credits", 0.0))
+    return 0.0
 
-def _check_quota(uid: str, kind: str):
-    plan = _user_plan(uid).get("plan", "free")
-    limit = PLAN_LIMITS[plan]["builds" if kind == "build" else "chat_messages"]
-    if limit < 0: return  # unlimited
-    p = _period_key()
-    row = sb.table("jarvis_usage_counters").select("*").eq("user_id", uid).eq("period", p).execute()
-    used = 0
-    if row.data:
-        used = row.data[0].get("builds_used" if kind == "build" else "chat_messages_used", 0) or 0
-    if used >= limit:
-        raise HTTPException(402, f"Quota exceeded for plan '{plan}'. Upgrade to continue.")
+def _update_credits(uid: str, amount: float, description: str = None):
+    # Update balance
+    res = sb.table("jarvis_users").select("credits").eq("id", uid).execute()
+    current = float(res.data[0].get("credits", 0.0)) if res.data else 0.0
+    new_balance = current + amount
+    sb.table("jarvis_users").update({"credits": new_balance}).eq("id", uid).execute()
+
+    # Log transaction
+    sb.table("jarvis_credit_transactions").insert({
+        "user_id": uid,
+        "amount": amount,
+        "type": "topup" if amount > 0 else "consumption",
+        "description": description
+    }).execute()
+    return new_balance
+
+def _check_credits(uid: str, required: float = 0.0):
+    balance = _user_credits(uid)
+    if balance < required:
+        raise HTTPException(402, f"Insufficient credits. Current balance: {balance:.2f}. Please top up.")
+
+def _consume_credits(uid: str, amount: float, description: str):
+    _check_credits(uid, amount)
+    _update_credits(uid, -amount, description)
 
 @api_router.get("/billing/plan")
 async def get_plan(user=Depends(get_current_user)):
@@ -1199,16 +1232,20 @@ async def get_plan(user=Depends(get_current_user)):
             "limits": PLAN_LIMITS[sub.get("plan", "free")], "usage": {"builds_used": usage.get("builds_used", 0),
                                                                        "chat_messages_used": usage.get("chat_messages_used", 0)}}
 
-class CheckoutIn(BaseModel):
-    plan: str  # starter | pro
+class CreditTopupIn(BaseModel):
+    amount_credits: str # "1000", "5000", "10000"
 
-@api_router.post("/billing/checkout")
-async def checkout(payload: CheckoutIn, user=Depends(get_current_user)):
+@api_router.post("/billing/topup")
+async def topup_credits(payload: CreditTopupIn, user=Depends(get_current_user)):
     if not STRIPE_SECRET_KEY:
-        raise HTTPException(400, "Stripe not configured yet")
-    price = STRIPE_PRICE_STARTER if payload.plan == "starter" else STRIPE_PRICE_PRO if payload.plan == "pro" else None
-    if not price:
-        raise HTTPException(400, "Invalid plan")
+        raise HTTPException(400, "Stripe not configured")
+
+    credits = payload.amount_credits
+    if credits not in CREDIT_PRICES:
+        raise HTTPException(400, "Invalid credit amount")
+
+    price_euro = CREDIT_PRICES[credits]
+
     try:
         sub = sb.table("jarvis_subscriptions").select("*").eq("user_id", user["id"]).execute()
         customer_id = sub.data[0].get("stripe_customer_id") if sub.data else None
@@ -1216,12 +1253,22 @@ async def checkout(payload: CheckoutIn, user=Depends(get_current_user)):
             cust = stripe.Customer.create(email=user["email"], name=user["name"], metadata={"user_id": user["id"]})
             customer_id = cust.id
             sb.table("jarvis_subscriptions").upsert({"user_id": user["id"], "stripe_customer_id": customer_id, "plan": "free"}).execute()
+
+        # Create a one-time payment session for the top-up
         session = stripe.checkout.Session.create(
-            customer=customer_id, mode="subscription",
-            line_items=[{"price": price, "quantity": 1}],
-            success_url=f"{APP_PUBLIC_URL}/app?upgraded=true",
+            customer=customer_id,
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": "eur",
+                    "product_data": {"name": f"{credits} Jarvis Credits"},
+                    "unit_amount": int(price_euro * 100),
+                },
+                "quantity": 1,
+            }],
+            success_url=f"{APP_PUBLIC_URL}/app?topup=true",
             cancel_url=f"{APP_PUBLIC_URL}/pricing",
-            metadata={"user_id": user["id"], "plan": payload.plan},
+            metadata={"user_id": user["id"], "credits": credits},
         )
         return {"url": session.url}
     except Exception as e:
