@@ -298,23 +298,52 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
         prior = [p for p in prior if p["id"] != user_msg["id"]][-10:]
         ctx = "".join(f"\n{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in prior)
         full = (ctx + f"\nUser: {payload.message}").strip() if ctx else payload.message
-        res = await router_call("chat", sysm, full, sb=sb)
+        
+        # Determine agent role for this chat (default to jarvis but can be specialized)
+        agent_role = "jarvis"
+        if "build" in payload.message.lower() or "project" in payload.message.lower():
+            agent_role = "ceo"
+        
+        res = await router_call(agent_role, sysm, full, sb=sb)
         reply = res["content"]
+        meta = {"agent_type": agent_role, "model": res.get("model"), "provider": res.get("provider")}
     except Exception as e:
         log.exception("LLM err"); reply = f"(LLM error: {str(e)[:200]})"
+        meta = {"agent_type": "error"}
+# ============ AUTOMATED DELEGATION ============
+async def delegate_task(uid: str, pid: str, instruction: str):
+    # Ask CEO agent to determine the best specialist for this task
+    prompt = f"User wants: {instruction}\n\nAnalyze this request and determine which of these agents is best suited to execute it: Architect, Backend, Frontend, Infra, Security, Refactor, UX, Research, User_Sim, QA_Test, Bug_Hunter, Performance, Exploit.\n\nReturn ONLY the name of the agent type."
+    res = await router_call("ceo", "You are the CEO Agent. Act as a dispatcher.", prompt, sb=sb)
+    agent_type = res["content"].strip().lower()
 
+    # Enqueue a job for this agent
+    job = {"id": str(uuid.uuid4()), "project_id": pid, "agent_type": agent_type, 
+           "status": "queued", "payload": {"instruction": instruction}}
+    sb.table("jarvis_agent_jobs").insert(job).execute()
+    asyncio.create_task(_run_job(job["id"]))
+    return agent_type
+
+# ============ CHAT ============
+...
     # Detect actions in response
     builder_action = None
     task_action = None
     display_content = reply
-    
+
     if "BUILDER_ACTION:" in reply:
         parts = reply.split("BUILDER_ACTION:", 1)
         display_content = parts[0].strip()
         action_text = parts[1].strip().split("\n")[0].strip()
-        builder_action = {"description": action_text, "type": "instruction"}
-    
+
+        # Determine project
+        projects = sb.table("jarvis_projects").select("id").eq("user_id", user["id"]).order("updated_at", desc=True).limit(1).execute().data
+        if projects:
+            agent = await delegate_task(user["id"], projects[0]["id"], action_text)
+            builder_action = {"description": f"Delegated to {agent}: {action_text}", "agent": agent}
+
     if "TASK_ACTION:" in reply:
+...
         parts = reply.split("TASK_ACTION:", 1)
         if display_content == reply: display_content = parts[0].strip()
         action_text = parts[1].strip().split("\n")[0].strip()
@@ -326,8 +355,11 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
             asyncio.create_task(_run_task(tid))
         except Exception: pass
 
+    if builder_action: meta["builder_action"] = builder_action
+    if task_action: meta["task_action"] = task_action
+
     asst = {"id": str(uuid.uuid4()), "session_id": payload.session_id, "role": "assistant",
-            "content": reply, "assistant_id": "jarvis"}
+            "content": reply, "assistant_id": "jarvis", "metadata": meta}
     sb.table("jarvis_chat_messages").insert(asst).execute()
     _bump_usage(user["id"], "chat")
     title = sess.data[0].get("title") or "New chat"
@@ -508,56 +540,33 @@ TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME', 'JarvisAgentBot'
 # In-memory link codes (short-lived, production should use Redis/DB)
 _telegram_link_codes: Dict[str, str] = {}  # code -> user_id
 
-PLAN_SYSTEM = """You are Jarvis, an autonomous senior software architect AND code execution agent running inside a full IDE environment.
+PLAN_SYSTEM = """You are the CEO AGENT, leading a high-performance ensemble of specialized agents to build a world-class application.
 
-YOUR AVAILABLE CAPABILITIES (use them):
-TERMINAL ACCESS & SKILLS:
-- You have FULL access to the terminal. If you need a tool, INSTALL it.
-- Run `pip install <package>` to install any Python library needed
-- Run `npm install <package>` to install any Node/React package needed
-- Run `python <script>` to execute scripts, run migrations, seed data
-- Run `uvicorn`, `pytest`, `eslint`, `prettier` — any CLI tool
-- Execute git commands, create branches, push to GitHub
-- You are like Claude Code — you don't just write code, you execute it, test it, and fix it autonomously.
+YOUR HIERARCHY:
+1. CTO AGENT (Architect, Backend, Frontend, Infra, Security, Refactor): Designs technical architecture and ensures code excellence.
+2. PRODUCT MANAGER AGENT (UX, Research, User Simulation): Ensures product-market fit and optimal user experience.
+3. ORCHESTRATOR KERNEL (Memory, Context Routing, Task Graph, Tool Router, Verification Engine): Manages execution and quality gates.
+4. AUTONOMOUS QA SWARM (Test, Bug Hunters, Performance, Security Exploit): Proactively validates every change.
 
-CODE GENERATION:
-- Write production-ready React + Tailwind + shadcn/ui frontend
-- Write production-ready FastAPI + Python backend with proper async patterns
-- Create Supabase Postgres tables with full DDL (migrations included)
-- Generate full authentication flows (JWT, OAuth, sessions)
-- Integrate Stripe billing, webhooks, customer portal
-- Add real-time features via Supabase Realtime / WebSockets
-- Generate comprehensive tests (pytest for backend, vitest for frontend)
-- Push the complete project to a new GitHub repository automatically
-
-INTEGRATIONS AVAILABLE:
-- Google Workspace (Sheets, Docs, Drive, Calendar, Gmail) via OAuth
-- GitHub API (repos, issues, PRs, gists)
-- Discord (webhooks and bot integration)
-- Resend (Email delivery)
-- Slack (send messages, read channels)
-- Notion (read/write pages and databases)
-- Telegram Bot (send/receive messages)
-- YouTube Data API
-- Stripe (payments, subscriptions, invoices)
-- Web search (via Serper / Google Search)
+YOUR MISSION:
+Convert the user's natural language description into a comprehensive, high-integrity project plan.
 
 Return STRICT JSON ONLY (no prose, no markdown fences) with this exact shape:
 {
-  "name": "short kebab-case project name tailored to THIS request",
-  "summary": "1-2 line summary of exactly what this app does, based on the user's description",
+  "name": "short kebab-case project name",
+  "summary": "1-2 line vision statement from the CEO",
   "tech_stack": {"frontend": "React + Tailwind", "backend": "FastAPI + Python", "database": "Supabase Postgres"},
-  "supabase_tables": [{"name": "table_name_specific_to_this_app", "columns": [{"name":"id","type":"uuid","notes":"primary key"}]}],
-  "steps": [{"id": 1, "title": "Specific step title", "description": "Detailed description", "files": ["paths"]}],
-  "files_to_generate": [{"path": "frontend/src/App.jsx", "purpose": "specific purpose for THIS app"}, ...]
+  "architectural_notes": "Key technical decisions from the CTO",
+  "ux_vision": "Key user experience principles from the PM",
+  "supabase_tables": [{"name": "table_name", "columns": [{"name":"id","type":"uuid","notes":"primary key"}]}],
+  "steps": [{"id": 1, "title": "Specific step", "description": "Detailed description", "agent_type": "architect|backend|frontend|infra|security", "files": ["paths"]}],
+  "files_to_generate": [{"path": "frontend/src/App.jsx", "purpose": "specific purpose", "agent_type": "frontend|backend|infra"}]
 }
 
 !!! CRITICAL RULES !!!
-1. NEVER use placeholder text like 'Hello World', 'test@example.com', or generic templates.
-2. EVERY line of code must serve the user's EXACT described app.
-3. Steps must be 8-15. Folders must be 3-15 covering full app.
-4. If the user provided a file/context, use it!
-5. Include a terminal_commands array of setup commands if packages need to be installed"""
+1. EVERY step and file must be assigned to a specific specialized agent type.
+2. The plan must include explicit security and verification steps.
+3. Use production-ready patterns exclusively."""
 
 CODE_SYSTEM = """You are Jarvis, an autonomous senior full-stack engineer with full terminal access. Given a project plan and a target file path, output ONLY the complete file content (no markdown fences, no commentary). Code must be production-ready, complete, runnable, and specific to the project described. If a package needs to be installed, you can assume it will be available or specify it in terminal commands. Use real-world patterns, never generic boilerplate."""
 
@@ -612,9 +621,10 @@ async def build_project(pid: str, user=Depends(get_current_user)):
     for f in files_to_gen:
         path = f.get("path") or "untitled.txt"
         purpose = f.get("purpose", "")
+        agent_role = f.get("agent_type") or "coder"
         try:
             prompt = f"Project plan:\n{json.dumps(plan, indent=2)[:4000]}\n\nGenerate the COMPLETE content of file: {path}\nPurpose: {purpose}\nReturn ONLY the file content, no markdown fences."
-            res = await router_call("coder", CODE_SYSTEM, prompt, sb=sb)
+            res = await router_call(agent_role if agent_role != "coder" else "coder", CODE_SYSTEM, prompt, sb=sb)
             content = res["content"].strip()
             if content.startswith("```"):
                 lines = content.split("\n"); content = "\n".join(lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:])
@@ -629,7 +639,7 @@ async def build_project(pid: str, user=Depends(get_current_user)):
             generated.append(path)
             # Persist a per-file job for the activity feed
             try:
-                job_row = {"id": str(uuid.uuid4()), "project_id": pid, "agent_type": "coder", "status": "done",
+                job_row = {"id": str(uuid.uuid4()), "project_id": pid, "agent_type": agent_role, "status": "done",
                            "payload": {"path": path, "purpose": purpose},
                            "result": {"actions": [file_actions[-1]], "provider": res.get("provider")},
                            "started_at": datetime.now(timezone.utc).isoformat(),
@@ -811,7 +821,7 @@ async def github_callback(code: str = None, state: str = None, error: str = None
 # ============ MULTI-AGENT JOBS / STATE ============
 class JobIn(BaseModel):
     project_id: str
-    agent_type: str  # planner | coder | tester | reviewer
+    agent_type: str  # architect | backend | frontend | infra | security | refactor | ux | research | user_sim | orchestrator | memory | verification | qa_test | bug_hunter | performance | exploit | planner | coder | tester | reviewer
     payload: dict = {}
 
 @api_router.get("/llm/providers")
@@ -872,35 +882,55 @@ async def _run_job(job_id: str):
     try:
         proj = sb.table("jarvis_projects").select("*").eq("id", j["project_id"]).single().execute().data
         agent = j["agent_type"]
+        
+        # Determine system prompt and role based on agent type
         if agent == "planner":
-            sysm = "You are the Planner sub-agent. Output STRICT JSON {steps:[{id,title,description,depends_on}]}."
-            res = await router_call("planner", sysm, f"Plan: {proj.get('description','')}", sb=sb)
+            sysm = "You are the CEO/Planner. Output STRICT JSON {steps:[{id,title,description,depends_on,agent_type}]}."
+            role = "planner"
+        elif agent in ("coder", "backend", "frontend", "architect", "refactor"):
+            sysm = f"You are the {agent.upper()} specialist. Output ONLY file content, no markdown fences. Production-ready code only."
+            role = agent if agent != "coder" else "coder"
+        elif agent == "security":
+            sysm = "You are the SECURITY specialist. Audit the code and return JSON {vulnerabilities:[],recommendations:[]}."
+            role = "security"
+        elif agent == "infra":
+            sysm = "You are the INFRA specialist. Handle deployment, Docker, and CI/CD. Output content for config files."
+            role = "infra"
+        elif agent == "ux":
+            sysm = "You are the UX specialist. Define user flows and interaction logic. Output JSON {flows:[],components:[]}."
+            role = "ux"
+        elif agent in ("tester", "qa_test"):
+            sysm = "You are the QA/TEST specialist. Output testing commands and scripts. JSON {tests:[]}."
+            role = "qa_test"
+        elif agent == "verification":
+            sysm = "You are the VERIFICATION engine. Verify that the task meets all criteria. Return JSON {verified:bool,reason:str}."
+            role = "verification"
+        else:
+            sysm = f"You are the {agent} specialist."
+            role = agent
+
+        # Execute based on agent type
+        if agent == "planner":
+            res = await router_call(role, sysm, f"Plan: {proj.get('description','')}", sb=sb)
             sb.table("jarvis_project_state").upsert({"project_id": j["project_id"], "current_phase": "coding",
                                                      "last_summary": res["content"][:500],
                                                      "updated_at": datetime.now(timezone.utc).isoformat()}).execute()
-        elif agent == "coder":
+        elif agent in ("coder", "backend", "frontend", "architect", "refactor", "infra"):
             path = j["payload"].get("path", "README.md")
             purpose = j["payload"].get("purpose", "")
-            sysm = "You are the Coder sub-agent. Output ONLY file content, no markdown fences."
-            res = await router_call("coder", sysm, f"File: {path}\nPurpose: {purpose}\nProject: {proj.get('description','')}", sb=sb)
+            res = await router_call(role, sysm, f"File: {path}\nPurpose: {purpose}\nProject: {proj.get('description','')}", sb=sb)
             content = res["content"].strip()
             if content.startswith("```"):
                 lines = content.split("\n"); content = "\n".join(lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:])
             existing = sb.table("jarvis_project_files").select("id").eq("project_id", j["project_id"]).eq("path", path).execute()
             if existing.data:
                 sb.table("jarvis_project_files").update({"content": content, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("project_id", j["project_id"]).eq("path", path).execute()
-                res["actions"] = [{"action": "edited", "path": path}]
             else:
                 sb.table("jarvis_project_files").insert({"id": str(uuid.uuid4()), "project_id": j["project_id"], "path": path, "content": content, "language": "plaintext"}).execute()
-                res["actions"] = [{"action": "created", "path": path}]
-        elif agent == "tester":
-            sysm = "You are the Tester sub-agent. Output curl/playwright commands as JSON {tests:[...]}."
-            res = await router_call("tester", sysm, j["payload"].get("instruction", "test all routes"), sb=sb)
-        elif agent == "reviewer":
-            sysm = "You are the Reviewer sub-agent. Review and critique. Return JSON {issues:[],suggestions:[]}."
-            res = await router_call("reviewer", sysm, j["payload"].get("instruction", "review project"), sb=sb)
+            res["actions"] = [{"action": "processed", "path": path}]
         else:
-            res = {"content": "unknown agent"}
+            res = await router_call(role, sysm, j["payload"].get("instruction", f"Task for {agent}"), sb=sb)
+
         sb.table("jarvis_agent_jobs").update({"status": "done", "result": {"content": res["content"][:4000], "provider": res.get("provider")},
                                               "finished_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
     except Exception as e:

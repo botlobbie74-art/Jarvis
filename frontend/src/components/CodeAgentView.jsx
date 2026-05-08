@@ -5,6 +5,22 @@ import { Loader2, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Hammer
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
 
+const ROLE_COLORS = {
+  'ceo': { bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20', icon: 'text-amber-500' },
+  'planner': { bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20', icon: 'text-amber-500' },
+  'cto': { bg: 'bg-purple-500/10', text: 'text-purple-500', border: 'border-purple-500/20', icon: 'text-purple-500' },
+  'architect': { bg: 'bg-purple-500/10', text: 'text-purple-500', border: 'border-purple-500/20', icon: 'text-purple-500' },
+  'backend': { bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/20', icon: 'text-blue-500' },
+  'frontend': { bg: 'bg-pink-500/10', text: 'text-pink-500', border: 'border-pink-500/20', icon: 'text-pink-500' },
+  'security': { bg: 'bg-red-500/10', text: 'text-red-500', border: 'border-red-500/20', icon: 'text-red-500' },
+  'infra': { bg: 'bg-cyan-500/10', text: 'text-cyan-500', border: 'border-cyan-500/20', icon: 'text-cyan-500' },
+  'ux': { bg: 'bg-orange-500/10', text: 'text-orange-500', border: 'border-orange-500/20', icon: 'text-orange-500' },
+  'pm': { bg: 'bg-orange-500/10', text: 'text-orange-500', border: 'border-orange-500/20', icon: 'text-orange-500' },
+  'qa': { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20', icon: 'text-emerald-500' },
+  'tester': { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20', icon: 'text-emerald-500' },
+  'jarvis': { bg: 'bg-sky-500/10', text: 'text-sky-500', border: 'border-sky-500/20', icon: 'text-sky-500' },
+};
+
 export default function CodeAgentView() {
   const [projects, setProjects] = useState([]);
   const [active, setActive] = useState(null);
@@ -273,147 +289,285 @@ export default function CodeAgentView() {
   const plan = active.project.plan || {};
   const dark = theme === 'dark';
   return (
-    <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-black' : 'bg-slate-50'}`}>
-      <header className={`px-6 py-3 border-b flex items-center gap-3 ${dark ? 'bg-[#050505] border-white/10' : 'bg-white border-slate-200'}`}>
-        <button onClick={() => setActive(null)} className={`text-[13px] ${dark ? 'text-white/60 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}>← Projects</button>
-        <div className="flex-1 min-w-0">
-          <div className={`text-[14px] font-semibold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{active.project.name}</div>
-          <div className={`text-[11px] truncate ${dark ? 'text-white/50' : 'text-slate-500'}`}>{active.project.description}</div>
+    <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-[#030305]' : 'bg-slate-50'}`}>
+      <header className={`px-6 py-4 border-b flex items-center gap-4 sticky top-0 z-50 backdrop-blur-xl ${dark ? 'bg-black/80 border-white/10' : 'bg-white/80 border-slate-200 shadow-sm'}`}>
+        <button onClick={() => setActive(null)} className={`text-[13px] font-bold transition-opacity hover:opacity-100 ${dark ? 'text-white/40' : 'text-slate-500'}`}>← PROJECTS</button>
+        <div className="flex-1 min-w-0 mx-2">
+          <div className={`text-[17px] font-black tracking-tight truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{active.project.name}</div>
+          <div className={`text-[11px] truncate font-medium opacity-50 tracking-wide ${dark ? 'text-white' : 'text-slate-900'}`}>{active.project.description}</div>
         </div>
-        <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-          active.project.status === 'ready' ? dark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-700'
-          : active.project.status === 'building' ? dark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-50 text-amber-700'
-          : dark ? 'bg-white/5 text-white/60' : 'bg-slate-100 text-slate-600'
-        }`}>{active.project.status}</span>
+        
+        <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white/5 border border-white/5">
+          {['CEO', 'CTO', 'PM', 'QA'].map((role) => {
+            const colors = ROLE_COLORS[role.toLowerCase()] || ROLE_COLORS.jarvis;
+            return (
+              <div key={role} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 cursor-default ${colors.bg} ${colors.border} ${colors.text}`}>
+                <span className={`w-1.5 h-1.5 rounded-full shadow-lg ${colors.text.replace('text-', 'bg-')}`} />
+                {role}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="h-8 w-[1px] bg-white/10 mx-2" />
+
         <button onClick={build} disabled={building}
-          className={`h-9 px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-60 transition-colors ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
-          {building ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-          {building ? 'Building...' : (active.files?.length ? 'Rebuild' : 'Build')}
+          className={`h-11 px-6 rounded-2xl text-[14px] font-black flex items-center gap-2.5 disabled:opacity-60 transition-all hover:scale-[1.02] active:scale-95 shadow-2xl ${dark ? 'bg-white text-black hover:bg-white/90 shadow-white/5' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20'}`}>
+          {building ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Play className="w-4.5 h-4.5" />}
+          {building ? 'SYSTEM BOOTING...' : (active.files?.length ? 'REFABRICATE' : 'INITIALIZE SYSTEM')}
         </button>
 
         <div className="relative">
           <button onClick={() => setShowRepoDropdown(!showRepoDropdown)} disabled={pushing || !active.files?.length}
-            className={`h-9 px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-50 transition-colors ${dark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}>
-            <Github className="w-3.5 h-3.5" /> 
-            {selectedRepo ? selectedRepo : 'Target Repo'}
-            <ChevronDown className="w-3 h-3 ml-1" />
+            className={`h-11 px-4 rounded-2xl text-[14px] font-bold flex items-center gap-2.5 disabled:opacity-50 transition-all hover:bg-white/10 ${dark ? 'bg-white/5 text-white border border-white/10' : 'bg-slate-100 text-slate-800'}`}>
+            <Github className="w-5 h-5" /> 
+            {selectedRepo ? selectedRepo : 'DEPLOY'}
           </button>
           {showRepoDropdown && (
-            <div className={`absolute top-full right-0 mt-1 w-56 rounded-xl border shadow-xl z-50 overflow-hidden ${dark ? 'bg-[#111114] border-white/10' : 'bg-white border-slate-200'}`}>
-              <div className="p-1">
-                <button onClick={() => { setSelectedRepo(null); pushGithub(); setShowRepoDropdown(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-[12px] flex items-center justify-between transition-colors ${dark ? 'hover:bg-white/5 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
-                  <span>Create new repository</span>
-                  {!selectedRepo && <Check className="w-3 h-3 text-emerald-500" />}
+            <div className={`absolute top-full right-0 mt-3 w-72 rounded-3xl border shadow-3xl z-50 overflow-hidden backdrop-blur-2xl transition-all animate-in zoom-in-95 ${dark ? 'bg-black/90 border-white/10' : 'bg-white/90 border-slate-200'}`}>
+              <div className="p-2.5">
+                <button onClick={() => { setSelectedRepo(null); pushGithub(); setShowRepoDropdown(false); }} className={`w-full text-left px-4 py-3 rounded-2xl text-[13px] font-bold flex items-center justify-between transition-all ${dark ? 'hover:bg-white/10 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-500">
+                      <Rocket className="w-4 h-4" />
+                    </div>
+                    <span>Create Fresh Repository</span>
+                  </div>
+                  {!selectedRepo && <Check className="w-4 h-4 text-emerald-500" />}
                 </button>
-                <div className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-bold ${dark ? 'text-white/30' : 'text-slate-400'}`}>Existing Repos (Placeholder)</div>
-                <button onClick={() => { setSelectedRepo(active.project.name); setShowRepoDropdown(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-[12px] flex items-center justify-between transition-colors ${dark ? 'hover:bg-white/5 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
-                  <span className="truncate">{active.project.name}</span>
-                  {selectedRepo === active.project.name && <Check className="w-3 h-3 text-emerald-500" />}
+                <div className={`px-4 py-3 mt-1 text-[10px] uppercase tracking-[0.2em] font-black ${dark ? 'text-white/20' : 'text-slate-400'}`}>ACTIVE REPOS</div>
+                <button onClick={() => { setSelectedRepo(active.project.name); setShowRepoDropdown(false); }} className={`w-full text-left px-4 py-3 rounded-2xl text-[13px] font-bold flex items-center justify-between transition-all ${dark ? 'hover:bg-white/10 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
+                   <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                      <Github className="w-4 h-4" />
+                    </div>
+                    <span className="truncate max-w-[120px]">{active.project.name}</span>
+                  </div>
+                  {selectedRepo === active.project.name && <Check className="w-4 h-4 text-emerald-500" />}
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        <button onClick={downloadZip} disabled={downloading || !active.files?.length}
-          className={`h-9 px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-50 transition-colors ${dark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}>
-          {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} ZIP
-        </button>
-
-        <button onClick={toggle} className={`w-9 h-9 rounded-full flex items-center justify-center ${dark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-white border border-slate-200 hover:bg-slate-100'}`}>
-          {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        <button onClick={toggle} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all hover:bg-white/10 ${dark ? 'bg-white/5 text-white' : 'bg-white border border-slate-200 hover:bg-slate-100'}`}>
+          {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
       </header>
 
       <div className="flex-1 flex min-h-0">
         {/* Plan + activity */}
-        <div className={`w-[320px] border-r flex flex-col min-h-0 ${dark ? 'bg-black border-white/10' : 'bg-white border-slate-200'}`}>
-          <div className={`p-4 border-b overflow-y-auto max-h-[35%] ${dark ? 'border-white/10' : 'border-slate-200'}`}>
-            <div className={`text-[11px] uppercase tracking-wider font-semibold mb-2 ${dark ? 'text-white/40' : 'text-slate-400'}`}>Plan</div>
-            {plan.summary && <div className={`text-[12px] mb-2 ${dark ? 'text-white/70' : 'text-slate-700'}`}>{plan.summary}</div>}
-            <ol className="space-y-1.5">
-              {(plan.steps || []).map((s) => (
-                <li key={s.id} className="flex items-start gap-2 text-[12px]">
-                  <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5 ${dark ? 'bg-white/10 text-white/60' : 'bg-slate-100 text-slate-600'}`}>{s.id}</span>
-                  <div className="min-w-0">
-                    <div className={`font-medium truncate ${dark ? 'text-white/90' : 'text-slate-800'}`}>{s.title}</div>
-                    <div className={`text-[11px] line-clamp-2 ${dark ? 'text-white/40' : 'text-slate-500'}`}>{s.description}</div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          <div className="flex-1 overflow-y-auto">
-            <div className={`px-4 pt-3 pb-1 text-[11px] uppercase tracking-wider font-semibold ${dark ? 'text-white/40' : 'text-slate-400'}`}>Files</div>
-            {(active.files || []).length === 0 && (
-              <div className={`px-4 py-3 text-[12px] ${dark ? 'text-white/40' : 'text-slate-400'}`}>No files yet. Click Build.</div>
-            )}
-            {(active.files || []).map((f) => (
-              <button key={f.path} onClick={() => setActiveFile(f)}
-                className={`w-full text-left px-4 py-1.5 text-[12px] flex items-center gap-2 transition-colors ${
-                  activeFile?.path === f.path
-                    ? dark ? 'bg-white/10 text-white' : 'bg-slate-900 text-white'
-                    : dark ? 'text-white/70 hover:bg-white/5' : 'text-slate-700 hover:bg-slate-50'
-                }`}>
-                <FileCode className="w-3.5 h-3.5 flex-shrink-0" /><span className="truncate">{f.path}</span>
-              </button>
-            ))}
-
-            <div className={`px-4 pt-4 pb-1 text-[11px] uppercase tracking-wider font-semibold border-t mt-2 ${dark ? 'text-white/40 border-white/10' : 'text-slate-400 border-slate-100'}`}>
-              Activity {pState?.current_phase && <span className={`ml-1 normal-case ${dark ? 'text-emerald-400' : 'text-emerald-600'}`}>· {pState.current_phase}</span>}
+        <div className={`w-[400px] border-r flex flex-col min-h-0 relative ${dark ? 'bg-[#050507] border-white/10' : 'bg-white border-slate-200'}`}>
+          <div className={`p-6 border-b overflow-y-auto max-h-[50%] custom-scrollbar ${dark ? 'border-white/10' : 'border-slate-200'}`}>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col">
+                <div className={`text-[10px] uppercase tracking-[0.3em] font-black ${dark ? 'text-white/30' : 'text-slate-400'}`}>STRATEGIC MAP</div>
+                <div className={`text-[18px] font-black ${dark ? 'text-white' : 'text-slate-900'}`}>System Protocol</div>
+              </div>
+              <div className={`text-[11px] px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 font-black border border-emerald-500/20 uppercase tracking-widest`}>Authorized</div>
             </div>
-            {jobs.slice(0, 30).map((j) => {
-              const actions = j.result?.actions || [];
-              if (actions.length > 0) return actions.map((a, i) => (
-                <div key={`${j.id}-${i}`} className={`px-4 py-1.5 flex items-center gap-2 ${dark ? 'hover:bg-white/5' : 'hover:bg-slate-50'} rounded mx-1`}>
-                  {a.action === 'created' ? <FilePlus className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" /> : <FilePenLine className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" />}
-                  <span className={`text-[10px] uppercase tracking-wider font-semibold ${a.action === 'created' ? 'text-emerald-500' : 'text-cyan-500'}`}>{a.action}</span>
-                  <code className={`text-[11px] font-mono truncate flex-1 ${dark ? 'text-fuchsia-400' : 'text-fuchsia-600'}`}>{a.path}</code>
+            
+            {plan.summary && (
+              <div className={`p-4 rounded-3xl mb-6 text-[13px] font-medium leading-relaxed border ${dark ? 'bg-white/[0.02] border-white/5 text-white/70' : 'bg-slate-50 border-slate-100 text-slate-700'}`}>
+                <div className="flex items-center gap-2 mb-1 opacity-50">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span className="text-[10px] uppercase font-black tracking-widest">CEO Mission Vision</span>
                 </div>
-              ));
-              return (
-                <div key={j.id} className="px-4 py-1.5 text-[11px] flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${j.status === 'done' ? 'bg-emerald-500' : j.status === 'processing' ? 'bg-amber-500 animate-pulse' : j.status === 'failed' ? 'bg-red-500' : 'bg-slate-300'}`} />
-                  <span className={`font-medium capitalize ${dark ? 'text-white/80' : 'text-slate-700'}`}>{j.agent_type}</span>
-                  <span className={`truncate flex-1 ${dark ? 'text-white/40' : 'text-slate-400'}`}>{j.status}</span>
-                </div>
-              );
-            })}
-
-            {/* Suggestions to continue */}
-            {suggestions.length > 0 && (
-              <div className="px-2 pt-4 pb-4">
-                <div className={`px-2 pb-2 text-[11px] uppercase tracking-wider font-semibold ${dark ? 'text-white/40' : 'text-slate-400'}`}>Continue</div>
-                {suggestions.slice(0, 5).map((s, i) => (
-                  <button key={i} onClick={() => { setActive(null); applySuggestion(s); }}
-                    className={`w-full text-left px-3 py-2 mx-1 my-1 rounded-lg text-[12px] transition-colors ${dark ? 'bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20' : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200'}`}>
-                    <Sparkles className="w-3 h-3 inline mr-1.5" />{s}
-                  </button>
-                ))}
+                {plan.summary}
               </div>
             )}
+            
+            <div className="space-y-6 relative">
+              {/* Timeline line */}
+              <div className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-gradient-to-b from-cyan-500/50 via-purple-500/50 to-pink-500/50 opacity-20" />
+              
+              {(plan.steps || []).map((s, idx) => {
+                const colors = ROLE_COLORS[s.agent_type?.toLowerCase()] || ROLE_COLORS.jarvis;
+                const isProcessing = jobs.some(j => j.agent_type === s.agent_type && j.status === 'processing');
+                const isDone = active.files?.some(f => s.files?.includes(f.path));
+                
+                return (
+                  <div key={s.id} className={`relative pl-12 transition-all duration-500 ${isDone ? 'opacity-100' : isProcessing ? 'opacity-100 scale-105' : 'opacity-40'}`}>
+                    <div className={`absolute left-0 top-0.5 w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all z-10 shadow-2xl ${
+                      isDone ? 'bg-emerald-500 border-emerald-500 text-white rotate-12 scale-110' 
+                      : isProcessing ? `${colors.bg} ${colors.border} animate-pulse scale-110 shadow-${colors.text.split('-')[1]}-500/20`
+                      : dark ? 'bg-black border-white/10 text-white/20' : 'bg-white border-slate-200 text-slate-300'
+                    }`}>
+                      {isDone ? <Check className="w-5 h-5" /> : <span className={`text-[13px] font-black ${isProcessing ? colors.text : ''}`}>{s.id}</span>}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={`font-black text-[14px] truncate tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`}>{s.title}</div>
+                        <div className={`text-[9px] px-2 py-0.5 rounded-lg border font-black uppercase tracking-widest ${colors.bg} ${colors.border} ${colors.text}`}>{s.agent_type || 'SYS'}</div>
+                      </div>
+                      <div className={`text-[12.5px] leading-relaxed font-medium ${dark ? 'text-white/40' : 'text-slate-500'}`}>{s.description}</div>
+                      {isProcessing && (
+                        <div className="mt-2 flex items-center gap-2">
+                           <Loader2 className={`w-3 h-3 animate-spin ${colors.text}`} />
+                           <span className={`text-[10px] font-black uppercase tracking-widest ${colors.text}`}>Agent Synchronizing...</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar bg-black/[0.02]">
+            <div className="sticky top-0 z-20 backdrop-blur-md px-6 pt-5 pb-3">
+               <div className={`text-[10px] uppercase tracking-[0.4em] font-black ${dark ? 'text-white/20' : 'text-slate-400'}`}>MANIFESTED ARCHITECTURE</div>
+            </div>
+            
+            <div className="px-3 space-y-1">
+              {(active.files || []).map((f) => (
+                <button key={f.path} onClick={() => setActiveFile(f)}
+                  className={`w-full text-left px-4 py-3 rounded-2xl text-[13px] flex items-center gap-4 transition-all group ${
+                    activeFile?.path === f.path
+                      ? dark ? 'bg-white/10 text-white shadow-2xl scale-[1.02] border border-white/10' : 'bg-slate-900 text-white shadow-xl scale-[1.02]'
+                      : dark ? 'text-white/50 hover:bg-white/5 hover:text-white' : 'text-slate-600 hover:bg-slate-100'
+                  }`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${activeFile?.path === f.path ? 'bg-cyan-500/20' : dark ? 'bg-white/5 group-hover:bg-white/10' : 'bg-slate-200'}`}>
+                    <FileCode className={`w-5 h-5 transition-all ${activeFile?.path === f.path ? 'text-cyan-400 rotate-12 scale-110' : 'text-inherit opacity-40'}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate font-bold tracking-tight">{f.path.split('/').pop()}</div>
+                    <div className="text-[10px] opacity-30 truncate font-mono tracking-tighter uppercase">{f.path}</div>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 transition-all ${activeFile?.path === f.path ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}`} />
+                </button>
+              ))}
+            </div>
+
+            <div className={`px-6 pt-8 pb-3 border-t mt-6 ${dark ? 'border-white/10' : 'border-slate-100'}`}>
+               <div className="flex items-center justify-between">
+                  <div className={`text-[10px] uppercase tracking-[0.4em] font-black ${dark ? 'text-white/20' : 'text-slate-400'}`}>REAL-TIME PULSE</div>
+                  {pState?.current_phase && <div className={`text-[9px] font-black px-2 py-0.5 rounded-full ${dark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600'}`}>{pState.current_phase.toUpperCase()}</div>}
+               </div>
+            </div>
+            
+            <div className="px-4 pb-10 space-y-3">
+              {jobs.slice(0, 30).map((j) => {
+                const actions = j.result?.actions || [];
+                const role = j.agent_type?.toLowerCase() || 'jarvis';
+                const colors = ROLE_COLORS[role] || ROLE_COLORS.jarvis;
+                
+                if (actions.length > 0) return actions.map((a, i) => (
+                  <div key={`${j.id}-${i}`} className={`p-4 rounded-3xl border flex flex-col gap-3 transition-all hover:scale-[1.02] shadow-sm hover:shadow-xl ${dark ? 'bg-white/[0.03] border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-lg ${colors.bg} ${colors.text} border ${colors.border}`}>
+                           {a.action === 'created' ? <FilePlus className="w-4 h-4" /> : <FilePenLine className="w-4 h-4" />}
+                        </div>
+                        <div>
+                           <div className={`text-[10px] font-black uppercase tracking-[0.2em] ${colors.text}`}>{a.action}</div>
+                           <div className={`text-[12px] font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{j.agent_type} Specialist</div>
+                        </div>
+                      </div>
+                      <span className="text-[9px] opacity-20 font-black tracking-widest">{new Date(j.finished_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <div className="bg-black/40 p-2.5 rounded-2xl border border-white/5">
+                       <code className={`text-[12px] font-mono break-all leading-tight ${dark ? 'text-fuchsia-400' : 'text-fuchsia-600'}`}>{a.path}</code>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="flex items-center gap-2">
+                         <div className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${colors.text.replace('text-', 'bg-')} shadow-${colors.text.split('-')[1]}-500/50`} />
+                         <span className={`text-[9px] font-black uppercase tracking-widest ${colors.text}`}>SYSTEM VERIFIED</span>
+                      </div>
+                      {j.result?.provider && <span className="text-[9px] font-black text-white/10 uppercase italic">{j.result.provider}</span>}
+                    </div>
+                  </div>
+                ));
+                return (
+                  <div key={j.id} className={`p-4 rounded-3xl border flex items-center gap-4 transition-all ${dark ? 'bg-white/[0.03] border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${j.status === 'done' ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]' : j.status === 'processing' ? 'bg-amber-500 animate-pulse shadow-[0_0_12px_rgba(245,158,11,0.8)]' : j.status === 'failed' ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]' : 'bg-slate-300'}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className={`text-[12px] font-black uppercase tracking-widest ${colors.text}`}>{j.agent_type}</span>
+                        <span className={`text-[10px] font-black uppercase tracking-tighter ${j.status === 'processing' ? 'text-amber-500' : dark ? 'text-white/20' : 'text-slate-400'}`}>{j.status}</span>
+                      </div>
+                      <div className="text-[11px] font-medium opacity-40 truncate">{j.payload?.purpose || j.payload?.path || 'Executing mission protocol...'}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
         {/* Editor */}
-        <div className={`flex-1 min-w-0 ${dark ? 'bg-[#0a0a0c]' : 'bg-[#1e1e1e]'}`}>
+        <div className={`flex-1 min-w-0 ${dark ? 'bg-[#050508]' : 'bg-[#1e1e1e]'}`}>
           {activeFile ? (
-            <>
-              <div className={`px-4 py-2 border-b text-[12px] flex items-center gap-2 ${dark ? 'bg-[#111114] border-white/10 text-white/70' : 'bg-[#252526] border-[#1e1e1e] text-slate-300'}`}>
-                <FileCode className="w-3.5 h-3.5" />{activeFile.path}
-                <span className={`text-[10px] ml-auto ${dark ? 'text-white/40' : 'text-slate-500'}`}>{activeFile.language}</span>
-              </div>
-              <Editor height="calc(100% - 36px)" theme="vs-dark" language={activeFile.language || 'plaintext'} value={activeFile.content || ''} onChange={(v) => saveFile(v || '')} options={{ minimap: { enabled: false }, fontSize: 13, automaticLayout: true }} />
-            </>
-          ) : (
-            <div className={`h-full flex items-center justify-center text-[14px] ${dark ? 'text-white/40' : 'text-slate-500'}`}>
-              {active.project.status === 'planning' ? (
-                <div className="text-center">
-                  <Rocket className={`w-10 h-10 mx-auto mb-3 ${dark ? 'text-white/30' : 'text-slate-400'}`} />
-                  <div className={dark ? 'text-white/60' : 'text-slate-300'}>Plan ready. Click Build to generate code.</div>
+            <div className="h-full flex flex-col">
+              <div className={`px-8 py-4 border-b text-[13px] flex items-center gap-4 sticky top-0 z-20 backdrop-blur-md ${dark ? 'bg-black/40 border-white/10 text-white/70' : 'bg-[#252526] border-[#1e1e1e] text-slate-300'}`}>
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-lg ${dark ? 'bg-white/10 border border-white/10' : 'bg-white/10'}`}>
+                  <FileCode className="w-4.5 h-4.5 text-cyan-400" />
                 </div>
-              ) : <span>Select a file</span>}
+                <div>
+                  <div className="font-mono font-bold tracking-tight text-[15px]">{activeFile.path.split('/').pop()}</div>
+                  <div className="text-[10px] opacity-40 font-mono tracking-tighter uppercase">{activeFile.path}</div>
+                </div>
+                <div className="h-6 w-[1px] bg-white/10 mx-2" />
+                <span className={`text-[10px] uppercase font-black tracking-[0.2em] px-3 py-1 rounded-full border border-white/5 bg-white/5 ${dark ? 'text-white/40' : 'text-slate-500'}`}>{activeFile.language}</span>
+                
+                <div className="ml-auto flex items-center gap-6">
+                   <div className="flex items-center gap-2">
+                     <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                     <span className="text-[10px] font-black tracking-[0.1em] opacity-40 uppercase">LIVE SYNC ACTIVE</span>
+                   </div>
+                </div>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <Editor height="100%" theme="vs-dark" language={activeFile.language || 'plaintext'} value={activeFile.content || ''} onChange={(v) => saveFile(v || '')} 
+                  options={{ 
+                    minimap: { enabled: true, scale: 1, renderCharacters: false }, 
+                    fontSize: 15, 
+                    lineNumbers: 'on',
+                    roundedSelection: true,
+                    scrollBeyondLastLine: false,
+                    readOnly: false,
+                    cursorStyle: 'line',
+                    cursorBlinking: 'smooth',
+                    automaticLayout: true,
+                    fontFamily: 'JetBrains Mono, Menlo, Monaco, Courier New, monospace',
+                    padding: { top: 30, bottom: 30 },
+                    scrollbar: {
+                      vertical: 'visible',
+                      horizontal: 'visible',
+                      useShadows: false,
+                      verticalHasArrows: false,
+                      horizontalHasArrows: false,
+                      verticalScrollbarSize: 10,
+                      horizontalScrollbarSize: 10
+                    }
+                  }} />
+              </div>
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center relative overflow-hidden bg-[#020204]">
+               {/* Advanced Grid background */}
+               <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(#22a3ff 1px, transparent 1px), linear-gradient(90deg, #22a3ff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+               <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at center, transparent 0%, #020204 70%)' }} />
+               
+               <div className="text-center relative z-10 max-w-md px-10 animate-in fade-in zoom-in duration-700">
+                  <div className="relative mb-10 group cursor-default">
+                    <div className="absolute inset-0 bg-cyan-500/20 blur-3xl rounded-full transition-all group-hover:bg-cyan-500/40" />
+                    <div className={`w-28 h-28 mx-auto rounded-[2.5rem] flex items-center justify-center shadow-3xl relative z-10 border transition-all group-hover:rotate-6 ${dark ? 'bg-black/50 border-white/10' : 'bg-white border-slate-200'}`}>
+                       <Rocket className={`w-12 h-12 ${dark ? 'text-white' : 'text-slate-400'}`} />
+                    </div>
+                  </div>
+                  <h3 className={`text-[28px] font-black mb-3 tracking-tighter ${dark ? 'text-white' : 'text-slate-900'}`}>SYSTEM STANDBY</h3>
+                  <p className={`text-[15px] leading-relaxed font-medium ${dark ? 'text-white/40' : 'text-slate-500'}`}>
+                    {active.project.status === 'planning' 
+                      ? "Strategic operational plan finalized. System awaiting initialization command to begin multi-agent construction sequence." 
+                      : "The architecture manifest is ready for review. Select a terminal file to begin strategic modifications."}
+                  </p>
+                  {active.project.status === 'planning' && (
+                    <button onClick={build} className="mt-10 h-14 px-10 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-white font-black text-[15px] tracking-widest transition-all hover:scale-[1.05] active:scale-95 shadow-[0_0_30px_rgba(34,163,255,0.3)] flex items-center gap-3 mx-auto uppercase">
+                      <Hammer className="w-5 h-5" /> Initialize Construction
+                    </button>
+                  )}
+               </div>
             </div>
           )}
         </div>

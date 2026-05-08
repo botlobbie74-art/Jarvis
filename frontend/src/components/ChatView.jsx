@@ -13,6 +13,22 @@ const BotAvatar = ({ size = 40, dark = true }) => (
   </svg>
 );
 
+const ROLE_COLORS = {
+  'ceo': { bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20', icon: 'text-amber-500' },
+  'planner': { bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20', icon: 'text-amber-500' },
+  'cto': { bg: 'bg-purple-500/10', text: 'text-purple-500', border: 'border-purple-500/20', icon: 'text-purple-500' },
+  'architect': { bg: 'bg-purple-500/10', text: 'text-purple-500', border: 'border-purple-500/20', icon: 'text-purple-500' },
+  'backend': { bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/20', icon: 'text-blue-500' },
+  'frontend': { bg: 'bg-pink-500/10', text: 'text-pink-500', border: 'border-pink-500/20', icon: 'text-pink-500' },
+  'security': { bg: 'bg-red-500/10', text: 'text-red-500', border: 'border-red-500/20', icon: 'text-red-500' },
+  'infra': { bg: 'bg-cyan-500/10', text: 'text-cyan-500', border: 'border-cyan-500/20', icon: 'text-cyan-500' },
+  'ux': { bg: 'bg-orange-500/10', text: 'text-orange-500', border: 'border-orange-500/20', icon: 'text-orange-500' },
+  'pm': { bg: 'bg-orange-500/10', text: 'text-orange-500', border: 'border-orange-500/20', icon: 'text-orange-500' },
+  'qa': { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20', icon: 'text-emerald-500' },
+  'tester': { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20', icon: 'text-emerald-500' },
+  'jarvis': { bg: 'bg-sky-500/10', text: 'text-sky-500', border: 'border-sky-500/20', icon: 'text-sky-500' },
+};
+
 export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpenBuilder }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -134,24 +150,40 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
           <div className="text-[12px] text-[#22a3ff]">Your autonomous AI engineer</div>
         </div>
       </header>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-5">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
         {loading && <div className="flex justify-center py-8"><Loader2 className={`w-5 h-5 animate-spin ${dark ? 'text-white/30' : 'text-slate-300'}`} /></div>}
-        {messages.map((m) => (
-          <div key={m.id} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {m.role === 'assistant' && (
-              <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center ${dark ? 'bg-[#0d1a2b]' : 'bg-slate-100'}`}>
-                <BotAvatar size={26} dark={dark} />
+        {messages.map((m) => {
+          const metadata = m.metadata || {};
+          const role = metadata.agent_type || 'jarvis';
+          const colors = ROLE_COLORS[role.toLowerCase()] || ROLE_COLORS.jarvis;
+          
+          return (
+            <div key={m.id} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {m.role === 'assistant' && (
+                <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center transition-colors ${dark ? 'bg-[#0d1a2b]' : 'bg-slate-100'} ${colors.border} border`}>
+                  <BotAvatar size={26} dark={dark} color={colors.icon} />
+                </div>
+              )}
+              <div className="flex flex-col max-w-[80%] gap-1">
+                {m.role === 'assistant' && (
+                  <div className="flex items-center gap-2 px-1">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${colors.text}`}>{role}</span>
+                    {metadata.model && <span className={`text-[10px] opacity-40 font-mono ${dark ? 'text-white' : 'text-slate-900'}`}>• {metadata.model}</span>}
+                  </div>
+                )}
+                <div className={`rounded-2xl px-4 py-3 text-[14px] leading-relaxed transition-all ${
+                  m.role === 'user'
+                    ? 'bg-[#22a3ff] text-white rounded-br-sm shadow-lg shadow-sky-500/10'
+                    : dark 
+                      ? `${colors.bg} border ${colors.border} text-white/90 rounded-bl-sm shadow-xl` 
+                      : `${colors.bg.replace('/10', '/5')} border ${colors.border} text-slate-800 rounded-bl-sm shadow-sm`
+                }`}>
+                  <div className="whitespace-pre-wrap">{m.role === 'assistant' ? (m.display_content || m.content) : m.content}</div>
+                </div>
               </div>
-            )}
-            <div className={`max-w-[70%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed ${
-              m.role === 'user'
-                ? 'bg-[#22a3ff] text-white rounded-br-sm'
-                : dark ? 'bg-white/5 border border-white/10 text-white/90 rounded-bl-sm' : 'bg-slate-100 text-slate-800 rounded-bl-sm'
-            }`}>
-              <div className="whitespace-pre-wrap">{m.role === 'assistant' ? (m.display_content || m.content) : m.content}</div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {sending && (
           <div className="flex gap-3 justify-start">
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${dark ? 'bg-[#0d1a2b]' : 'bg-slate-100'}`}><BotAvatar size={26} dark={dark} /></div>
@@ -167,19 +199,24 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
 
         {/* Builder action banner */}
         {builderAction && (
-          <div className="flex justify-start">
-            <div className={`border rounded-2xl rounded-bl-sm px-4 py-3 text-[13px] max-w-[70%] ${dark ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-300' : 'bg-cyan-50 border-cyan-200 text-cyan-700'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Hammer className="w-3.5 h-3.5" />
-                <span className="font-medium">Builder action ready</span>
+          <div className="flex justify-start ml-12">
+            <div className={`border rounded-2xl rounded-bl-sm px-5 py-4 text-[13px] max-w-[85%] shadow-2xl transition-all animate-in slide-in-from-left-2 duration-300 ${dark ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300' : 'bg-cyan-50 border-cyan-200 text-cyan-700'}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                  <Hammer className="w-4 h-4 text-cyan-500" />
+                </div>
+                <div>
+                  <span className="font-bold uppercase tracking-tight text-[11px]">System Protocol</span>
+                  <div className="text-[14px] font-semibold leading-none">Builder intervention required</div>
+                </div>
               </div>
-              <p className={`text-[12px] mb-3 ${dark ? 'text-white/60' : 'text-slate-600'}`}>{builderAction.description}</p>
-              <div className="flex gap-2">
-                <button onClick={executeBuilderAction} className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-white text-[12px] font-medium rounded-lg transition-colors">
-                  Open in Builder
+              <p className={`text-[13px] mb-4 leading-relaxed ${dark ? 'text-white/70' : 'text-slate-600'}`}>{builderAction.description}</p>
+              <div className="flex gap-3">
+                <button onClick={executeBuilderAction} className="px-5 py-2 bg-cyan-500 hover:bg-cyan-400 text-white text-[13px] font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-cyan-500/20">
+                  Initialize Builder
                 </button>
-                <button onClick={dismissBuilderAction} className={`px-3 py-1.5 text-[12px] rounded-lg transition-colors ${dark ? 'bg-white/5 hover:bg-white/10 text-white/60' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>
-                  Dismiss
+                <button onClick={dismissBuilderAction} className={`px-5 py-2 text-[13px] font-medium rounded-xl transition-colors ${dark ? 'bg-white/5 hover:bg-white/10 text-white/60' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>
+                  Decline
                 </button>
               </div>
             </div>
