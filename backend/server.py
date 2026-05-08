@@ -46,6 +46,8 @@ api_router = APIRouter(prefix="/api")
 log = logging.getLogger("jarvis")
 
 @app.get("/")
+@app.get("/health")
+@app.get("/api")
 async def health_check():
     return {"status": "ok", "message": "Jarvis Service Online"}
 
@@ -915,7 +917,14 @@ def _gen_code(length=6):
 @api_router.get("/plugins/telegram/link-code")
 async def telegram_link_code(user=Depends(get_current_user)):
     code = _gen_code()
-    _telegram_link_codes[code] = user["id"]
+    # Save code to DB instead of memory to survive restarts
+    meta = {"link_code": code, "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()}
+    existing = sb.table("jarvis_plugins").select("id").eq("user_id", user["id"]).eq("plugin_id", "telegram_linking").execute()
+    if existing.data:
+        sb.table("jarvis_plugins").update({"metadata": meta}).eq("user_id", user["id"]).eq("plugin_id", "telegram_linking").execute()
+    else:
+        sb.table("jarvis_plugins").insert({"id": str(uuid.uuid4()), "user_id": user["id"], "plugin_id": "telegram_linking", "plugin_name": "Telegram Linking", "metadata": meta}).execute()
+    
     bot_username = TELEGRAM_BOT_USERNAME or "JarvisAgentBot"
     return {"code": code, "bot_username": bot_username}
 
@@ -926,38 +935,21 @@ async def telegram_status(user=Depends(get_current_user)):
         return {"status": "connected"}
     return {"status": "pending"}
 
-@api_router.post("/plugins/telegram/verify")
-async def telegram_verify(payload: dict):
-    """Called by the Telegram bot webhook when user sends a link code."""
-    code = payload.get("code", "").strip().upper()
-    telegram_user_id = payload.get("telegram_user_id")
-    telegram_username = payload.get("telegram_username", "")
-    uid = _telegram_link_codes.pop(code, None)
-    if not uid:
-        return {"ok": False, "error": "Invalid or expired code"}
-    meta = {"telegram_user_id": telegram_user_id, "telegram_username": telegram_username}
-    existing = sb.table("jarvis_plugins").select("id").eq("user_id", uid).eq("plugin_id", "telegram").execute()
-    doc = {"user_id": uid, "plugin_id": "telegram", "plugin_name": "Telegram",
-           "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta}
-    if existing.data:
-        sb.table("jarvis_plugins").update(doc).eq("user_id", uid).eq("plugin_id", "telegram").execute()
-    else:
-        doc["id"] = str(uuid.uuid4())
-        sb.table("jarvis_plugins").insert(doc).execute()
-    return {"ok": True}
-
 async def _tg_send(chat_id, text):
     if not TELEGRAM_BOT_TOKEN:
         return
     async with httpx.AsyncClient(timeout=10) as cli:
-        await cli.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                       json={"chat_id": chat_id, "text": text})
+        try:
+            r = await cli.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                               json={"chat_id": chat_id, "text": text})
+            if r.status_code >= 400:
+                log.error(f"TG send error: {r.text}")
+        except Exception as e:
+            log.exception("TG send failed")
 
 @api_router.post("/telegram/webhook")
 async def telegram_webhook(payload: dict):
-    """Native Telegram webhook. Set with:
-    https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://api.jarvisagent.app/api/telegram/webhook
-    """
+    """Native Telegram webhook."""
     msg = payload.get("message") or payload.get("edited_message") or {}
     chat = msg.get("chat") or {}
     frm = msg.get("from") or {}
@@ -965,47 +957,76 @@ async def telegram_webhook(payload: dict):
     tg_user_id = str(frm.get("id") or chat_id or "")
     tg_username = frm.get("username", "")
     text = (msg.get("text") or "").strip()
+    
     if not chat_id or not text:
         return {"ok": True}
 
-    # /start handling
-    if text.lower().startswith("/start"):
-        await _tg_send(chat_id,
-            "Hi! I'm Jarvis. To link your account, open jarvisagent.app → Plugins → Telegram, "
-            "then send me the 6-character code shown there.")
-        return {"ok": True}
-
-    # Strip leading slash so users can type /CODE if they wish
-    candidate = text.lstrip("/").upper()
-    # Link-code path: 6 chars, A-Z 0-9
-    if len(candidate) == 6 and candidate.isalnum() and candidate.isupper():
-        uid = _telegram_link_codes.pop(candidate, None)
-        if not uid:
-            await _tg_send(chat_id, "❌ Invalid or expired code. Generate a new one in the app.")
-            return {"ok": True}
-        meta = {"telegram_user_id": tg_user_id, "telegram_chat_id": chat_id, "telegram_username": tg_username}
-        existing = sb.table("jarvis_plugins").select("id").eq("user_id", uid).eq("plugin_id", "telegram").execute()
-        doc = {"user_id": uid, "plugin_id": "telegram", "plugin_name": "Telegram",
-               "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta}
-        if existing.data:
-            sb.table("jarvis_plugins").update(doc).eq("user_id", uid).eq("plugin_id", "telegram").execute()
+    try:
+        # 1. Handle /start and deep-linking
+        if text.lower().startswith("/start"):
+            parts = text.split()
+            if len(parts) > 1:
+                # User clicked a link like t.me/bot?start=CODE
+                candidate = parts[1].upper()
+            else:
+                await _tg_send(chat_id,
+                    "Hi! I'm Jarvis. To link your account, open jarvisagent.app → Plugins → Telegram, "
+                    "then send me the 6-character code shown there.")
+                return {"ok": True}
         else:
-            doc["id"] = str(uuid.uuid4())
-            sb.table("jarvis_plugins").insert(doc).execute()
-        await _tg_send(chat_id, "✅ Linked! You can now chat with Jarvis here.")
-        return {"ok": True}
+            # 2. Handle direct code entry
+            candidate = text.lstrip("/").upper()
 
-    # Normal chat path: find linked user
-    rows = sb.table("jarvis_plugins").select("*").eq("plugin_id", "telegram").execute().data
-    uid = None
-    for row in rows:
-        m = row.get("metadata") or {}
-        if str(m.get("telegram_user_id", "")) == tg_user_id or str(m.get("telegram_chat_id", "")) == str(chat_id):
-            uid = row["user_id"]; break
-    if not uid:
-        await _tg_send(chat_id,
-            "You're not linked yet. Open jarvisagent.app → Plugins → Telegram and send me the code.")
-        return {"ok": True}
+        # Link-code processing
+        if len(candidate) == 6 and candidate.isalnum() and candidate.isupper():
+            # Search DB for this code in pending links
+            all_pending = sb.table("jarvis_plugins").select("*").eq("plugin_id", "telegram_linking").execute().data
+            uid = None
+            for p in all_pending:
+                meta = p.get("metadata") or {}
+                if meta.get("link_code") == candidate:
+                    uid = p["user_id"]
+                    # Check expiry
+                    exp = meta.get("expires_at")
+                    if exp and datetime.fromisoformat(exp) < datetime.now(timezone.utc):
+                        await _tg_send(chat_id, "❌ This code has expired. Please generate a new one in the app.")
+                        return {"ok": True}
+                    break
+            
+            if not uid:
+                # If we were in /start CODE, maybe just give welcome
+                if text.lower().startswith("/start"):
+                    await _tg_send(chat_id, "Hi! I'm Jarvis. That link code seems invalid. Open the app to get a new one.")
+                else:
+                    await _tg_send(chat_id, "❌ Invalid or expired code. Generate a new one in the app.")
+                return {"ok": True}
+
+            # Success: link the account
+            meta = {"telegram_user_id": tg_user_id, "telegram_chat_id": chat_id, "telegram_username": tg_username}
+            sb.table("jarvis_plugins").upsert({
+                "user_id": uid, "plugin_id": "telegram", "plugin_name": "Telegram",
+                "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta
+            }).execute()
+            # Clean up linking entry
+            sb.table("jarvis_plugins").delete().eq("user_id", uid).eq("plugin_id", "telegram_linking").execute()
+            
+            await _tg_send(chat_id, "✅ Linked! You can now chat with Jarvis here.")
+            return {"ok": True}
+
+        # 3. Normal chat path: find linked user
+        rows = sb.table("jarvis_plugins").select("*").eq("plugin_id", "telegram").execute().data
+        uid = None
+        for row in rows:
+            m = row.get("metadata") or {}
+            if str(m.get("telegram_user_id", "")) == tg_user_id or str(m.get("telegram_chat_id", "")) == str(chat_id):
+                uid = row["user_id"]; break
+        
+        if not uid:
+            if not text.lower().startswith("/"): # Don't annoy on every unknown command
+                await _tg_send(chat_id, "You're not linked yet. Open jarvisagent.app → Plugins → Telegram and send me the code.")
+            return {"ok": True}
+
+        # ... rest of the assistant logic ...
 
     # Reuse or create a Telegram chat session
     existing_sessions = sb.table("jarvis_chat_sessions").select("*").eq("user_id", uid).eq("assistant_id", "jarvis").order("updated_at", desc=True).limit(1).execute()
