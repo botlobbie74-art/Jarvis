@@ -1023,8 +1023,8 @@ async def telegram_webhook(payload: dict):
         if text.lower().startswith("/start"):
             parts = text.split()
             if len(parts) > 1:
-                # User clicked a link like t.me/bot?start=CODE
                 candidate = parts[1].upper()
+                log.info(f"Telegram /start with candidate: {candidate}")
             else:
                 await _tg_send(chat_id,
                     "Hi! I'm Jarvis. To link your account, open jarvisagent.app → Plugins → Telegram, "
@@ -1033,25 +1033,30 @@ async def telegram_webhook(payload: dict):
         else:
             # 2. Handle direct code entry
             candidate = text.lstrip("/").upper()
+            log.info(f"Telegram message as candidate: {candidate}")
 
         # Link-code processing
         if len(candidate) == 6 and candidate.isalnum() and candidate.isupper():
+            log.info(f"Processing link code candidate: {candidate}")
             # Search DB for this code in pending links
             all_pending = sb.table("jarvis_plugins").select("*").eq("plugin_id", "telegram_linking").execute().data
+            log.info(f"Found {len(all_pending)} pending link codes in DB")
             uid = None
             for p in all_pending:
                 meta = p.get("metadata") or {}
                 if meta.get("link_code") == candidate:
                     uid = p["user_id"]
+                    log.info(f"Match found! User ID: {uid}")
                     # Check expiry
                     exp = meta.get("expires_at")
                     if exp and datetime.fromisoformat(exp) < datetime.now(timezone.utc):
+                        log.info("Link code expired")
                         await _tg_send(chat_id, "❌ This code has expired. Please generate a new one in the app.")
                         return {"ok": True}
                     break
-            
+
             if not uid:
-                # If we were in /start CODE, maybe just give welcome
+                log.info(f"No user found for code: {candidate}")
                 if text.lower().startswith("/start"):
                     await _tg_send(chat_id, "Hi! I'm Jarvis. That link code seems invalid. Open the app to get a new one.")
                 else:
@@ -1066,7 +1071,8 @@ async def telegram_webhook(payload: dict):
             }).execute()
             # Clean up linking entry
             sb.table("jarvis_plugins").delete().eq("user_id", uid).eq("plugin_id", "telegram_linking").execute()
-            
+
+            log.info(f"Successfully linked Telegram chat {chat_id} to user {uid}")
             await _tg_send(chat_id, "✅ Linked! You can now chat with Jarvis here.")
             return {"ok": True}
 
@@ -1177,60 +1183,59 @@ async def telegram_webhook(payload: dict):
     await _tg_send(chat_id, reply)
     return {"ok": True}
 
-# ============ BILLING (CREDITS) ============
-CREDIT_PRICES = {
-    "1000": 10.0,
-    "5000": 40.0,
-    "10000": 70.0,
-}
+    # ============ BILLING (CREDITS) ============
+    CREDIT_PRICES = {
+        "1000": 10.0,
+        "5000": 40.0,
+        "10000": 70.0,
+    }
 
-# Token pricing: 1 credit = 1000 tokens (approx)
-# This is a rough mapping. In a real system, you might use different costs for input vs output.
-TOKEN_TO_CREDIT_RATE = 0.001
+    # Token pricing: 1 credit = 1000 tokens (approx)
+    TOKEN_TO_CREDIT_RATE = 0.001
 
-# Cost per build: a flat fee in credits + token cost
-BUILD_FLAT_FEE = 5.0
+    # Cost per build: a flat fee in credits + token cost
+    BUILD_FLAT_FEE = 5.0
 
-def _user_credits(uid: str) -> float:
-    res = sb.table("jarvis_users").select("credits").eq("id", uid).execute()
-    if res.data and res.data[0]:
-        return float(res.data[0].get("credits", 0.0))
-    return 0.0
+    def _user_credits(uid: str) -> float:
+        res = sb.table("jarvis_users").select("credits").eq("id", uid).execute()
+        if res.data and res.data[0]:
+            return float(res.data[0].get("credits", 0.0))
+        return 0.0
 
-def _update_credits(uid: str, amount: float, description: str = None):
-    # Update balance
-    res = sb.table("jarvis_users").select("credits").eq("id", uid).execute()
-    current = float(res.data[0].get("credits", 0.0)) if res.data else 0.0
-    new_balance = current + amount
-    sb.table("jarvis_users").update({"credits": new_balance}).eq("id", uid).execute()
+    def _update_credits(uid: str, amount: float, description: str = None):
+        res = sb.table("jarvis_users").select("credits").eq("id", uid).execute()
+        current = float(res.data[0].get("credits", 0.0)) if res.data else 0.0
+        new_balance = current + amount
+        sb.table("jarvis_users").update({"credits": new_balance}).eq("id", uid).execute()
 
-    # Log transaction
-    sb.table("jarvis_credit_transactions").insert({
-        "user_id": uid,
-        "amount": amount,
-        "type": "topup" if amount > 0 else "consumption",
-        "description": description
-    }).execute()
-    return new_balance
+        sb.table("jarvis_credit_transactions").insert({
+            "user_id": uid,
+            "amount": amount,
+            "type": "topup" if amount > 0 else "consumption",
+            "description": description
+        }).execute()
+        return new_balance
 
-def _check_credits(uid: str, required: float = 0.0):
-    balance = _user_credits(uid)
-    if balance < required:
-        raise HTTPException(402, f"Insufficient credits. Current balance: {balance:.2f}. Please top up.")
+    def _check_credits(uid: str, required: float = 0.0):
+        balance = _user_credits(uid)
+        if balance < required:
+            raise HTTPException(402, f"Insufficient credits. Current balance: {balance:.2f}. Please top up.")
 
-def _consume_credits(uid: str, amount: float, description: str):
-    _check_credits(uid, amount)
-    _update_credits(uid, -amount, description)
+    def _consume_credits(uid: str, amount: float, description: str):
+        _check_credits(uid, amount)
+        _update_credits(uid, -amount, description)
 
 @api_router.get("/billing/plan")
 async def get_plan(user=Depends(get_current_user)):
     sub = _user_plan(user["id"])
-    p = _period_key()
-    usage_row = sb.table("jarvis_usage_counters").select("*").eq("user_id", user["id"]).eq("period", p).execute()
-    usage = usage_row.data[0] if usage_row.data else {"builds_used": 0, "chat_messages_used": 0}
-    return {"plan": sub.get("plan"), "status": sub.get("status"), "current_period_end": sub.get("current_period_end"),
-            "limits": PLAN_LIMITS[sub.get("plan", "free")], "usage": {"builds_used": usage.get("builds_used", 0),
-                                                                       "chat_messages_used": usage.get("chat_messages_used", 0)}}
+    credits = _user_credits(user["id"])
+    return {
+        "plan": sub.get("plan"),
+        "status": sub.get("status"),
+        "current_period_end": sub.get("current_period_end"),
+        "credits": credits,
+        "credit_prices": CREDIT_PRICES
+    }
 
 class CreditTopupIn(BaseModel):
     amount_credits: str # "1000", "5000", "10000"
@@ -1298,7 +1303,16 @@ async def webhook(request: Request):
     obj = evt["data"]["object"]
     if t == "checkout.session.completed":
         meta = obj.get("metadata", {}) or {}
-        uid = meta.get("user_id"); plan = meta.get("plan", "starter")
+        uid = meta.get("user_id")
+        credits = meta.get("credits")
+
+        # Handle Credit Top-up
+        if uid and credits:
+            amount = float(credits)
+            _update_credits(uid, amount, f"Top-up purchase: {amount} credits")
+
+        # Handle Plan Upgrade (Legacy support if subscriptions still exist)
+        plan = meta.get("plan", "starter")
         sub_id = obj.get("subscription")
         if uid and sub_id:
             sub = stripe.Subscription.retrieve(sub_id)

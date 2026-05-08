@@ -24,13 +24,13 @@ export default function BillingView() {
   };
   useEffect(() => { load(); }, []);
 
-  const checkout = async (plan) => {
-    setPending(plan);
+  const topup = async (amount) => {
+    setPending(amount);
     try {
-      const { data } = await api.post('/billing/checkout', { plan });
+      const { data } = await api.post('/billing/topup', { amount_credits: amount });
       window.location.href = data.url;
     } catch (e) {
-      toast({ title: 'Stripe not configured', description: e?.response?.data?.detail || 'Coming soon', variant: 'destructive' });
+      toast({ title: 'Payment failed', description: e?.response?.data?.detail || 'Error during top-up', variant: 'destructive' });
     } finally { setPending(null); }
   };
 
@@ -49,8 +49,8 @@ export default function BillingView() {
 
   const plan = data.plan || 'free';
   const info = PLAN_INFO[plan];
-  const limits = data.limits || {};
-  const usage = data.usage || {};
+  const credits = data.credits || 0;
+  const creditPrices = data.credit_prices || {};
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50">
@@ -61,19 +61,30 @@ export default function BillingView() {
         </div>
         <p className="text-slate-500 mb-8">Manage your subscription and check your monthly usage.</p>
 
-        {/* Current plan */}
+        {/* Current plan & Credits */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
           <div className="flex items-start justify-between flex-wrap gap-4">
-            <div>
-              <div className="text-[12px] uppercase tracking-wider text-slate-400 font-semibold">Current plan</div>
-              <div className="flex items-center gap-2 mt-1">
-                <Crown className="w-5 h-5" style={{ color: info.color }} />
-                <span className="text-[24px] font-semibold text-slate-900">{info.name}</span>
-                <span className="text-[12px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">{data.status || 'active'}</span>
+            <div className="flex gap-8">
+              <div >
+                <div className="text-[12px] uppercase tracking-wider text-slate-400 font-semibold">Current plan</div>
+                <div className="flex items-center gap-2 mt-1">
+                  <Crown className="w-5 h-5" style={{ color: info.color }} />
+                  <span className="text-[24px] font-semibold text-slate-900">{info.name}</span>
+                  <span className="text-[12px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">{data.status || 'active'}</span>
+                </div>
+                {data.current_period_end && (
+                  <div className="text-[13px] text-slate-500 mt-1">Renews on {new Date(data.current_period_end).toLocaleDateString()}</div>
+                )}
               </div>
-              {data.current_period_end && (
-                <div className="text-[13px] text-slate-500 mt-1">Renews on {new Date(data.current_period_end).toLocaleDateString()}</div>
-              )}
+              <div className="border-l border-slate-200 pl-8">
+                <div className="text-[12px] uppercase tracking-wider text-slate-400 font-semibold">Credit Balance</div>
+                <div className="flex items-center gap-2 mt-1">
+                  <Zap className="w-5 h-5 text-amber-500" />
+                  <span className="text-[24px] font-semibold text-slate-900">{credits.toLocaleString()}</span>
+                  <span className="text-[12px] text-slate-500">credits</span>
+                </div>
+                <div className="text-[13px] text-slate-500 mt-1">Used for builds & AI chat</div>
+              </div>
             </div>
             {plan !== 'free' && (
               <button onClick={portal} className="h-9 px-4 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[13px] font-medium flex items-center gap-1.5 transition-colors">
@@ -81,41 +92,39 @@ export default function BillingView() {
               </button>
             )}
           </div>
+        </div>
 
-          {/* Usage bars */}
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { label: 'App builds', used: usage.builds_used || 0, limit: limits.builds },
-              { label: 'Chat messages', used: usage.chat_messages_used || 0, limit: limits.chat_messages },
-            ].map((u) => {
-              const pct = u.limit < 0 ? 0 : Math.min(100, Math.round(((u.used || 0) / Math.max(1, u.limit)) * 100));
-              return (
-                <div key={u.label}>
-                  <div className="flex items-center justify-between text-[13px] mb-1">
-                    <span className="text-slate-700 font-medium">{u.label}</span>
-                    <span className="text-slate-500">{u.used} / {u.limit < 0 ? '∞' : u.limit}</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ width: u.limit < 0 ? '15%' : `${pct}%`, background: pct > 85 ? '#f59e0b' : '#06b6d4' }} />
-                  </div>
+        {/* Credit Top-ups */}
+        <div className="mb-10">
+          <h2 className="text-[18px] font-semibold text-slate-900 mb-3">Top up Credits</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {Object.entries(creditPrices).map(([amount, price]) => (
+              <div key={amount} className="bg-white rounded-2xl p-6 border border-slate-200 hover:border-amber-500 transition-colors group">
+                <div className="flex items-center gap-2 mb-2">
+                  <Zap className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
+                  <span className="font-semibold text-slate-900">{amount} Credits</span>
                 </div>
-              );
-            })}
+                <div className="flex items-baseline gap-1 mb-4">
+                  <span className="text-[24px] font-bold text-slate-900">€{price}</span>
+                </div>
+                <button
+                  onClick={() => topup(amount)}
+                  disabled={pending === amount}
+                  className="w-full h-10 rounded-lg bg-slate-900 text-white hover:bg-slate-800 font-medium transition-colors disabled:opacity-60"
+                >
+                  {pending === amount ? 'Processing...' : 'Buy Now'}
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Upgrade options */}
-        {plan !== 'pro' && (
-          <div>
-            <h2 className="text-[18px] font-semibold text-slate-900 mb-3">Upgrade</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {plan !== 'starter' && (
-                <UpgradeCard plan="starter" name="Starter" price="19.99" features={['50 builds / month', 'Unlimited chat', 'All plugins', 'Unlimited GitHub']} onClick={() => checkout('starter')} pending={pending === 'starter'} highlight />
-              )}
-              <UpgradeCard plan="pro" name="Pro" price="49.99" features={['Unlimited builds', 'Multi-seat (5 users)', 'Priority support', 'Custom plugins']} onClick={() => checkout('pro')} pending={pending === 'pro'} />
-            </div>
-          </div>
-        )}
+        {/* Plans are now legacy, everything is credit-based */}
+        <div className="bg-slate-100 rounded-2xl p-6 border border-slate-200 text-center">
+          <p className="text-slate-500 text-[13px]">
+            We have moved to a flexible credit system. Your legacy plan is still active, but all new usage is billed via credits.
+          </p>
+        </div>
       </div>
     </div>
   );

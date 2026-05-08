@@ -206,7 +206,7 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
                   <Hammer className="w-4 h-4 text-cyan-500" />
                 </div>
                 <div>
-                  <span className="font-bold uppercase tracking-tight text-[11px]">System Protocol</span>
+                  <span className="font-bold uppercase tracking-tight text-[11px]">Jarvis Builder</span>
                   <div className="text-[14px] font-semibold leading-none">Builder intervention required</div>
                 </div>
               </div>

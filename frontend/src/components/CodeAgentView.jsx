@@ -37,6 +37,8 @@ export default function CodeAgentView() {
   const [loading, setLoading] = useState(true);
   const [suggestions, setSuggestions] = useState([]);
   const [attachedFile, setAttachedFile] = useState(null);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(true);
   const fileInputRef = useRef(null);
   const { toast } = useToast();
   const { theme, toggle } = useTheme();
@@ -361,8 +363,7 @@ export default function CodeAgentView() {
           <div className={`p-6 border-b overflow-y-auto max-h-[50%] custom-scrollbar ${dark ? 'border-white/10' : 'border-slate-200'}`}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex flex-col">
-                <div className={`text-[10px] uppercase tracking-[0.3em] font-black ${dark ? 'text-white/30' : 'text-slate-400'}`}>STRATEGIC MAP</div>
-                <div className={`text-[18px] font-black ${dark ? 'text-white' : 'text-slate-900'}`}>System Protocol</div>
+                <div className={`text-[18px] font-black ${dark ? 'text-white' : 'text-slate-900'}`}>Jarvis Builder</div>
               </div>
               <div className={`text-[11px] px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 font-black border border-emerald-500/20 uppercase tracking-widest`}>Authorized</div>
             </div>
@@ -415,10 +416,6 @@ export default function CodeAgentView() {
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar bg-black/[0.02]">
-            <div className="sticky top-0 z-20 backdrop-blur-md px-6 pt-5 pb-3">
-               <div className={`text-[10px] uppercase tracking-[0.4em] font-black ${dark ? 'text-white/20' : 'text-slate-400'}`}>MANIFESTED ARCHITECTURE</div>
-            </div>
-            
             <div className="px-3 space-y-1">
               {(active.files || []).map((f) => (
                 <button key={f.path} onClick={() => setActiveFile(f)}
@@ -472,7 +469,6 @@ export default function CodeAgentView() {
                     <div className="flex items-center justify-between mt-1">
                       <div className="flex items-center gap-2">
                          <div className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${colors.text.replace('text-', 'bg-')} shadow-${colors.text.split('-')[1]}-500/50`} />
-                         <span className={`text-[9px] font-black uppercase tracking-widest ${colors.text}`}>SYSTEM VERIFIED</span>
                       </div>
                       {j.result?.provider && <span className="text-[9px] font-black text-white/10 uppercase italic">{j.result.provider}</span>}
                     </div>
