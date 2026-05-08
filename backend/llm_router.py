@@ -90,28 +90,56 @@ async def _call_cohere(p, system, user):
 
 async def llm_call(role: str, system: str, user: str, sb=None) -> dict:
     mapping = AGENT_MODEL_MAP.get(role, {"provider": "gemini", "model": "gemini-2.5-flash"})
-    provider_name = mapping["provider"]
-    p = _get_provider(provider_name)
-    if not p: raise RuntimeError(f"Provider {provider_name} not found")
+    primary_provider = mapping["provider"]
+    primary_model = mapping["model"]
     
-    p_use = {**p, "model": mapping["model"]}
+    # Define fallback chain (all free/generous tiers)
+    fallback_chain = [primary_provider]
+    for fallback in ["gemini", "groq", "cerebras", "cohere"]:
+        if fallback not in fallback_chain:
+            fallback_chain.append(fallback)
+            
+    last_error = None
     
-    t0 = time.time()
-    try:
-        if p_use["name"] == "gemini":
-            content = await _call_gemini(p_use, system, user)
-        elif p_use["name"] == "cohere":
-            content = await _call_cohere(p_use, system, user)
-        else:
-            content = await _call_openai_compat(p_use, system, user)
+    for provider_name in fallback_chain:
+        p = _get_provider(provider_name)
+        if not p: continue
         
-        latency = int((time.time() - t0) * 1000)
-        if sb:
-            try:
-                sb.table("jarvis_llm_calls").insert({"provider": p_use["name"], "model": p_use["model"], "role": role,
-                                                     "status": "success", "latency_ms": latency}).execute()
-            except Exception: pass
-        return {"content": content, "provider": p_use["name"], "model": p_use["model"], "latency_ms": latency}
-    except Exception as e:
-        log.error("LLM call failed: %s", e)
-        raise RuntimeError(f"LLM call failed for {role}: {e}")
+        # Determine model to use for fallback
+        model_to_use = primary_model if provider_name == primary_provider else p["model"]
+        p_use = {**p, "model": model_to_use}
+        
+        t0 = time.time()
+        try:
+            if p_use["name"] == "gemini":
+                content = await _call_gemini(p_use, system, user)
+            elif p_use["name"] == "cohere":
+                content = await _call_cohere(p_use, system, user)
+            else:
+                content = await _call_openai_compat(p_use, system, user)
+            
+            latency = int((time.time() - t0) * 1000)
+            if sb:
+                try:
+                    sb.table("jarvis_llm_calls").insert({"provider": p_use["name"], "model": p_use["model"], "role": role,
+                                                         "status": "success", "latency_ms": latency}).execute()
+                except Exception: pass
+            
+            if provider_name != primary_provider:
+                log.info(f"Fallback successful: Used {provider_name} instead of {primary_provider}")
+                
+            return {"content": content, "provider": p_use["name"], "model": p_use["model"], "latency_ms": latency}
+            
+        except Exception as e:
+            log.warning("LLM call failed for provider %s: %s", provider_name, e)
+            last_error = e
+            # Record failed call
+            if sb:
+                try:
+                    sb.table("jarvis_llm_calls").insert({"provider": p_use["name"], "model": p_use["model"], "role": role,
+                                                         "status": "failed", "latency_ms": int((time.time() - t0) * 1000)}).execute()
+                except Exception: pass
+            continue # Try next provider in the chain
+
+    log.error("All fallback providers failed. Last error: %s", last_error)
+    raise RuntimeError(f"LLM call failed for {role} after exhausting fallbacks. Last error: {last_error}")
