@@ -45,6 +45,16 @@ export default function PluginsView() {
         return;
       }
 
+      // Real GitHub OAuth
+      if (p.id === 'github' && p.status !== 'connected') {
+        const { data } = await api.get('/auth/github/start');
+        const popup = window.open(data.auth_url, 'github-oauth', 'width=520,height=640');
+        const timer = setInterval(async () => {
+          if (popup?.closed) { clearInterval(timer); await load(); setPendingId(null); }
+        }, 800);
+        return;
+      }
+
       // Telegram — show connect modal
       if (p.id === 'telegram' && p.status !== 'connected') {
         const { data } = await api.get('/plugins/telegram/link-code');

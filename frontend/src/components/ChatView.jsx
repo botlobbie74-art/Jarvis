@@ -94,7 +94,7 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
 
   if (!sessionId && messages.length === 0) {
     return (
-      <div className={`flex-1 flex flex-col ${dark ? 'bg-[#0a0a0c]' : 'bg-white'}`}>
+      <div className={`flex-1 flex flex-col ${dark ? 'bg-black' : 'bg-white'}`}>
         <header className={`px-8 py-5 border-b backdrop-blur flex items-center gap-3 ${dark ? 'border-white/10 bg-black/30' : 'border-slate-200 bg-slate-50/50'}`}>
           <BotAvatar size={36} dark={dark} />
           <div>
@@ -126,7 +126,7 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
   }
 
   return (
-    <div className={`flex-1 flex flex-col ${dark ? 'bg-[#0a0a0c]' : 'bg-white'}`}>
+    <div className={`flex-1 flex flex-col ${dark ? 'bg-black' : 'bg-white'}`}>
       <header className={`px-8 py-4 border-b backdrop-blur flex items-center gap-3 ${dark ? 'border-white/10 bg-black/30' : 'border-slate-200 bg-slate-50/50'}`}>
         <BotAvatar size={32} dark={dark} />
         <div className="flex-1">

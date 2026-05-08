@@ -64,7 +64,7 @@ export default function Landing() {
   };
 
   return (
-    <div className={`min-h-screen w-full flex ${dark ? 'bg-[#0a0a0c]' : 'bg-white'}`}>
+    <div className={`min-h-screen w-full flex ${dark ? 'bg-black' : 'bg-white'}`}>
       {/* LEFT */}
       <div className="relative w-full lg:w-1/2 flex flex-col">
         {dark && <CodeRain density={0.7} />}
@@ -111,7 +111,7 @@ export default function Landing() {
                   onClick={handleGithub}
                   disabled={!!oauthLoading}
                   className={`w-full h-12 rounded-full flex items-center justify-center gap-3 transition-colors disabled:opacity-60 font-medium border ${
-                    dark ? 'bg-slate-800 hover:bg-slate-700 text-white border-white/10' : 'bg-slate-900 hover:bg-slate-800 text-white border-transparent'
+                    dark ? 'bg-zinc-900 hover:bg-zinc-800 text-white border-white/10' : 'bg-slate-900 hover:bg-slate-800 text-white border-transparent'
                   }`}
                 >
                   {oauthLoading === 'github' ? (

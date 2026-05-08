@@ -5,13 +5,6 @@ import { Loader2, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Hammer
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
 
-const MODES = [
-  { id: 'fullstack', label: 'Full-stack app', icon: Layers, prompt: 'Build me a SaaS app for...' },
-  { id: 'mobile',    label: 'Mobile app',     icon: Smartphone, prompt: 'Build me a mobile app for...' },
-  { id: 'landing',   label: 'Landing page',   icon: Globe, prompt: 'Build me a landing page for...' },
-  { id: 'brainstorm',label: 'Brainstorm',     icon: Lightbulb, prompt: 'Brainstorm ideas about...' },
-];
-
 export default function CodeAgentView() {
   const [projects, setProjects] = useState([]);
   const [active, setActive] = useState(null);
@@ -19,7 +12,6 @@ export default function CodeAgentView() {
   const [jobs, setJobs] = useState([]);
   const [pState, setPState] = useState(null);
   const [description, setDescription] = useState('');
-  const [mode, setMode] = useState('fullstack');
   const [creating, setCreating] = useState(false);
   const [building, setBuilding] = useState(false);
   const [pushing, setPushing] = useState(false);
@@ -79,7 +71,7 @@ export default function CodeAgentView() {
     if (!description.trim()) return;
     setCreating(true);
     try {
-      let fullDesc = `[${MODES.find((m) => m.id === mode)?.label}] ${description}`;
+      let fullDesc = description;
       if (attachedFile) {
         fullDesc += `\n\n[Attached file: ${attachedFile.name} — incorporate its context into the plan]`;
       }
@@ -139,10 +131,10 @@ export default function CodeAgentView() {
   // ============ HOME (no project open) ============
   if (!active) {
     return (
-      <div className={`flex-1 overflow-y-auto relative ${theme === 'dark' ? 'bg-[#0a0a0c] text-white' : 'bg-slate-50 text-slate-900'}`}>
+      <div className={`flex-1 overflow-y-auto relative ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-slate-900'}`}>
         {/* Floating letters background (only dark) */}
         {theme === 'dark' && (
-          <div className="absolute inset-0 grain-bg pointer-events-none" />
+          <div className="absolute inset-0 grain-bg pointer-events-none opacity-50" />
         )}
 
         {/* Top right: theme toggle */}
@@ -152,37 +144,20 @@ export default function CodeAgentView() {
           </button>
         </div>
 
-        <div className="relative z-10 max-w-4xl mx-auto px-6 pt-24 pb-10">
-          <h1 className={`text-center font-semibold tracking-tight ${theme === 'dark' ? 'text-white glow-text' : 'text-slate-900'}`} style={{ fontSize: 'clamp(36px, 6vw, 72px)', lineHeight: 1.05 }}>
+        <div className="relative z-10 max-w-4xl mx-auto px-6 pt-32 pb-10">
+          <h1 className={`text-center font-semibold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`} style={{ fontSize: 'clamp(40px, 7vw, 84px)', lineHeight: 1.05 }}>
             What can I do for you today?
           </h1>
 
-          {/* Mode tabs */}
-          <div className={`mt-12 flex justify-center gap-1 p-1 rounded-2xl mx-auto w-fit ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-white border border-slate-200'}`}>
-            {MODES.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => { setMode(m.id); if (!description) setDescription(''); }}
-                className={`flex items-center gap-2 px-4 h-10 rounded-xl text-[13px] font-medium transition-colors ${
-                  mode === m.id
-                    ? theme === 'dark' ? 'bg-white/10 text-white' : 'bg-slate-900 text-white'
-                    : theme === 'dark' ? 'text-white/60 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <m.icon className="w-3.5 h-3.5" /> {m.label}
-              </button>
-            ))}
-          </div>
-
           {/* Composer */}
-          <div className={`mt-3 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
+          <div className={`mt-16 rounded-3xl border shadow-2xl transition-all ${theme === 'dark' ? 'bg-[#0a0a0c] border-white/10' : 'bg-white border-slate-200'}`}>
             {attachedFile && (
-              <div className={`flex items-center gap-2 px-4 pt-3 pb-0`}>
+              <div className={`flex items-center gap-2 px-6 pt-5 pb-0`}>
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] ${theme === 'dark' ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' : 'bg-cyan-50 border border-cyan-200 text-cyan-700'}`}>
-                  <Paperclip className="w-3 h-3" />
-                  <span className="truncate max-w-[200px]">{attachedFile.name}</span>
+                  <Paperclip className="w-3.5 h-3.5" />
+                  <span className="truncate max-w-[200px] font-medium">{attachedFile.name}</span>
                   <button onClick={() => setAttachedFile(null)} className="ml-1 opacity-60 hover:opacity-100">
-                    <XIcon className="w-3 h-3" />
+                    <XIcon className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -191,18 +166,18 @@ export default function CodeAgentView() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) createPlan(); }}
-              placeholder={MODES.find((m) => m.id === mode)?.prompt}
-              rows={5}
-              className={`w-full px-5 py-4 bg-transparent outline-none resize-none text-[15px] ${theme === 'dark' ? 'text-white placeholder:text-white/30' : 'text-slate-800 placeholder:text-slate-400'}`}
+              placeholder="Describe the app or feature you want to build..."
+              rows={4}
+              className={`w-full px-6 py-6 bg-transparent outline-none resize-none text-[18px] leading-relaxed ${theme === 'dark' ? 'text-white placeholder:text-white/20' : 'text-slate-800 placeholder:text-slate-400'}`}
             />
-            <div className={`flex items-center justify-between px-3 py-2 border-t ${theme === 'dark' ? 'border-white/5' : 'border-slate-100'}`}>
-              <div className="flex items-center gap-2">
+            <div className={`flex items-center justify-between px-4 py-3 border-t ${theme === 'dark' ? 'border-white/5' : 'border-slate-100'}`}>
+              <div className="flex items-center gap-3">
                 <button
                   title="Attach a file or screenshot as context"
                   onClick={() => fileInputRef.current?.click()}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-white/50 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-white/50 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100'}`}
                 >
-                  <Paperclip className="w-3.5 h-3.5" />
+                  <Paperclip className="w-4 h-4" />
                 </button>
                 <input
                   ref={fileInputRef}
@@ -213,16 +188,18 @@ export default function CodeAgentView() {
                     if (f) { setAttachedFile(f); toast({ title: `📎 ${f.name} attached`, description: 'Context will be included in the plan.' }); }
                   }}
                 />
-                <span className={`text-[11px] px-2 py-1 rounded-full ${theme === 'dark' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
-                  Auto-routed to best free model
-                </span>
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium ${theme === 'dark' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Autonomous Agent Active</span>
+                </div>
               </div>
               <button
                 onClick={createPlan}
                 disabled={creating || !description.trim()}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 ${theme === 'dark' ? 'bg-white text-slate-900 hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                className={`h-11 px-6 rounded-full flex items-center gap-2 transition-colors disabled:opacity-40 font-semibold text-[14px] ${theme === 'dark' ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
               >
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
+                {creating ? 'Planning...' : 'Generate App'}
               </button>
             </div>
           </div>
@@ -276,8 +253,8 @@ export default function CodeAgentView() {
   const plan = active.project.plan || {};
   const dark = theme === 'dark';
   return (
-    <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-[#0a0a0c]' : 'bg-slate-50'}`}>
-      <header className={`px-6 py-3 border-b flex items-center gap-3 ${dark ? 'bg-[#111114] border-white/10' : 'bg-white border-slate-200'}`}>
+    <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-black' : 'bg-slate-50'}`}>
+      <header className={`px-6 py-3 border-b flex items-center gap-3 ${dark ? 'bg-[#050505] border-white/10' : 'bg-white border-slate-200'}`}>
         <button onClick={() => setActive(null)} className={`text-[13px] ${dark ? 'text-white/60 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}>← Projects</button>
         <div className="flex-1 min-w-0">
           <div className={`text-[14px] font-semibold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{active.project.name}</div>
@@ -289,7 +266,7 @@ export default function CodeAgentView() {
           : dark ? 'bg-white/5 text-white/60' : 'bg-slate-100 text-slate-600'
         }`}>{active.project.status}</span>
         <button onClick={build} disabled={building}
-          className={`h-9 px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-60 transition-colors ${dark ? 'bg-white text-slate-900 hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+          className={`h-9 px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-60 transition-colors ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
           {building ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
           {building ? 'Building...' : (active.files?.length ? 'Rebuild' : 'Build')}
         </button>
@@ -304,7 +281,7 @@ export default function CodeAgentView() {
 
       <div className="flex-1 flex min-h-0">
         {/* Plan + activity */}
-        <div className={`w-[320px] border-r flex flex-col min-h-0 ${dark ? 'bg-[#111114] border-white/10' : 'bg-white border-slate-200'}`}>
+        <div className={`w-[320px] border-r flex flex-col min-h-0 ${dark ? 'bg-black border-white/10' : 'bg-white border-slate-200'}`}>
           <div className={`p-4 border-b overflow-y-auto max-h-[35%] ${dark ? 'border-white/10' : 'border-slate-200'}`}>
             <div className={`text-[11px] uppercase tracking-wider font-semibold mb-2 ${dark ? 'text-white/40' : 'text-slate-400'}`}>Plan</div>
             {plan.summary && <div className={`text-[12px] mb-2 ${dark ? 'text-white/70' : 'text-slate-700'}`}>{plan.summary}</div>}

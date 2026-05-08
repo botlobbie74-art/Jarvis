@@ -63,16 +63,16 @@ export default function Dashboard() {
 
   if (loading || !user) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${dark ? 'bg-[#0a0a0c]' : 'bg-white'}`}>
+      <div className={`min-h-screen flex items-center justify-center ${dark ? 'bg-black' : 'bg-white'}`}>
         <Loader2 className={`w-8 h-8 animate-spin ${dark ? 'text-white/30' : 'text-slate-200'}`} />
       </div>
     );
   }
 
   return (
-    <div className={`min-h-screen flex ${dark ? 'bg-[#0a0a0c]' : 'bg-white'}`}>
+    <div className={`min-h-screen flex ${dark ? 'bg-black' : 'bg-white'}`}>
       {/* Sidebar */}
-      <aside className={`w-[280px] border-r flex flex-col ${dark ? 'bg-[#0d0d10] border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+      <aside className={`w-[280px] border-r flex flex-col ${dark ? 'bg-black border-white/10' : 'bg-slate-50 border-slate-200'}`}>
         <div className={`p-4 border-b flex items-center gap-2 ${dark ? 'border-white/10' : 'border-slate-200'}`}>
           <WingmanFace size={36} />
           <div className="flex-1">

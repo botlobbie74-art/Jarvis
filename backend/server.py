@@ -303,10 +303,10 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
 # ============ PLUGINS ============
 DEFAULT_PLUGINS = [
     {"id": "google", "name": "Google Workspace", "description": "Sheets, Docs, Calendar, Drive", "category": "productivity"},
-    {"id": "google_search", "name": "Google Search", "description": "Search the web", "category": "search"},
-    {"id": "youtube", "name": "YouTube", "description": "Search and manage videos", "category": "media"},
     {"id": "github", "name": "GitHub", "description": "Repos, issues, pull requests", "category": "developer"},
     {"id": "telegram", "name": "Telegram", "description": "Message Jarvis from Telegram", "category": "messaging"},
+    {"id": "google_search", "name": "Google Search", "description": "Search the web", "category": "search"},
+    {"id": "youtube", "name": "YouTube", "description": "Search and manage videos", "category": "media"},
 ]
 
 @api_router.get("/plugins")
@@ -361,12 +361,14 @@ _telegram_link_codes: Dict[str, str] = {}  # code -> user_id
 PLAN_SYSTEM = """You are Jarvis, an autonomous senior software architect AND code execution agent running inside a full IDE environment.
 
 YOUR AVAILABLE CAPABILITIES (use them):
-TERMINAL ACCESS:
+TERMINAL ACCESS & SKILLS:
+- You have FULL access to the terminal. If you need a tool, INSTALL it.
 - Run `pip install <package>` to install any Python library needed
 - Run `npm install <package>` to install any Node/React package needed
 - Run `python <script>` to execute scripts, run migrations, seed data
 - Run `uvicorn`, `pytest`, `eslint`, `prettier` — any CLI tool
 - Execute git commands, create branches, push to GitHub
+- You are like Claude Code — you don't just write code, you execute it, test it, and fix it autonomously.
 
 CODE GENERATION:
 - Write production-ready React + Tailwind + shadcn/ui frontend
@@ -381,6 +383,8 @@ CODE GENERATION:
 INTEGRATIONS AVAILABLE:
 - Google Workspace (Sheets, Docs, Drive, Calendar, Gmail) via OAuth
 - GitHub API (repos, issues, PRs, gists)
+- Discord (webhooks and bot integration)
+- Resend (Email delivery)
 - Slack (send messages, read channels)
 - Notion (read/write pages and databases)
 - Telegram Bot (send/receive messages)
@@ -399,14 +403,13 @@ Return STRICT JSON ONLY (no prose, no markdown fences) with this exact shape:
 }
 
 !!! CRITICAL RULES !!!
-1. NEVER use placeholder text like 'Hello World', 'welcome_message', 'test@example.com', or 'settings table'
-2. NEVER generate generic boilerplate — every line of code must serve the user's EXACT described app
-3. EVERY table name, column, file, and step must be specific to this request
-4. Steps must be 8-15. Files must be 8-15 covering full app (auth, UI, API, DB, styling, tests)
-5. The summary must describe the user's EXACT requested app
-6. Include a terminal_commands array of setup commands if packages need to be installed"""
+1. NEVER use placeholder text like 'Hello World', 'test@example.com', or generic templates.
+2. EVERY line of code must serve the user's EXACT described app.
+3. Steps must be 8-15. Folders must be 3-15 covering full app.
+4. If the user provided a file/context, use it!
+5. Include a terminal_commands array of setup commands if packages need to be installed"""
 
-CODE_SYSTEM = """You are Jarvis, an autonomous senior full-stack engineer with full terminal access. Given a project plan and a target file path, output ONLY the complete file content (no markdown fences, no commentary). Code must be production-ready, complete, runnable, and specific to the project described — never generic boilerplate. Import real packages, use real API patterns, real database queries. If a package needs to be installed, it will be — you can reference it freely."""
+CODE_SYSTEM = """You are Jarvis, an autonomous senior full-stack engineer with full terminal access. Given a project plan and a target file path, output ONLY the complete file content (no markdown fences, no commentary). Code must be production-ready, complete, runnable, and specific to the project described. If a package needs to be installed, you can assume it will be available or specify it in terminal commands. Use real-world patterns, never generic boilerplate."""
 
 @api_router.get("/projects")
 async def list_projects(user=Depends(get_current_user)):
@@ -430,6 +433,21 @@ async def plan_project(payload: ProjectCreate, user=Depends(get_current_user)):
            "description": payload.description, "status": "planning", "plan": plan}
     sb.table("jarvis_projects").insert(doc).execute()
     return sb.table("jarvis_projects").select("*").eq("id", pid).single().execute().data
+
+@api_router.post("/projects/{pid}/suggest")
+async def suggest_continuation(pid: str, user=Depends(get_current_user)):
+    """Generate 1-5 suggestions to improve or continue the app."""
+    proj = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).single().execute().data
+    if not proj: raise HTTPException(404, "Not found")
+    prompt = f"Project: {proj['name']}\nDescription: {proj['description']}\n\nBased on this app, suggest 3-5 specific next steps or features to implement. Return a simple JSON list of strings: {{\"suggestions\": [\"...\"]}}"
+    try:
+        res = await router_call("chat", "You are a product manager.", prompt, sb=sb)
+        raw = res["content"].strip()
+        if "```" in raw: raw = raw.split("```")[1].replace("json", "").strip()
+        data = json.loads(raw)
+        return data
+    except Exception:
+        return {"suggestions": ["Add user profiles", "Integrate analytics", "Improve UI design", "Add dark mode"]}
 
 @api_router.post("/projects/{pid}/build")
 async def build_project(pid: str, user=Depends(get_current_user)):
@@ -571,6 +589,14 @@ async def google_start(user=Depends(get_current_user)):
     }
     return {"auth_url": f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"}
 
+@api_router.get("/auth/github/start")
+async def github_start(user=Depends(get_current_user)):
+    client_id = os.environ.get('GITHUB_CLIENT_ID')
+    if not client_id: raise HTTPException(400, "GitHub OAuth not configured")
+    state = secrets.token_urlsafe(24); _oauth_states[state] = user["id"]
+    params = {"client_id": client_id, "scope": " ".join(["repo", "user", "workflow"]), "state": state}
+    return {"auth_url": f"https://github.com/login/oauth/authorize?{urllib.parse.urlencode(params)}"}
+
 from fastapi.responses import HTMLResponse
 
 @api_router.get("/auth/google/callback", response_class=HTMLResponse)
@@ -607,6 +633,30 @@ async def google_callback(code: str = None, state: str = None, error: str = None
             d2["id"] = str(uuid.uuid4())
             sb.table("jarvis_plugins").insert(d2).execute()
     return HTMLResponse("<script>window.close()</script><p>Google connected. You can close this window.</p>")
+
+@api_router.get("/auth/github/callback", response_class=HTMLResponse)
+async def github_callback(code: str = None, state: str = None, error: str = None):
+    if error or not code or not state or state not in _oauth_states:
+        return HTMLResponse(f"<script>window.close()</script><p>OAuth failed: {error or 'invalid'}</p>")
+    uid = _oauth_states.pop(state)
+    client_id = os.environ.get('GITHUB_CLIENT_ID')
+    client_secret = os.environ.get('GITHUB_CLIENT_SECRET')
+    async with httpx.AsyncClient() as cli:
+        r = await cli.post("https://github.com/login/oauth/access_token", 
+            headers={"Accept": "application/json"},
+            data={"code": code, "client_id": client_id, "client_secret": client_secret})
+    if r.status_code != 200:
+        return HTMLResponse(f"<p>Token exchange failed: {r.text[:200]}</p>")
+    tok = r.json()
+    if "error" in tok:
+        return HTMLResponse(f"<p>GitHub Error: {tok.get('error_description')}</p>")
+    
+    meta = {"access_token": tok.get("access_token"), "scope": tok.get("scope")}
+    sb.table("jarvis_plugins").upsert({
+        "user_id": uid, "plugin_id": "github", "plugin_name": "GitHub",
+        "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta
+    }).execute()
+    return HTMLResponse("<script>window.close()</script><p>GitHub connected. You can close this window.</p>")
 
 # ============ MULTI-AGENT JOBS / STATE ============
 class JobIn(BaseModel):
