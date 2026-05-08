@@ -45,6 +45,10 @@ app = FastAPI(title="Jarvis API")
 api_router = APIRouter(prefix="/api")
 log = logging.getLogger("jarvis")
 
+@app.get("/")
+async def health_check():
+    return {"status": "ok", "message": "Jarvis Service Online"}
+
 # ============ MODELS ============
 class UserSignup(BaseModel):
     email: EmailStr; password: str; name: str
