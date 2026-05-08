@@ -178,3 +178,4 @@ credentials.json
 *.pem
 *.key
 .credentials
+.aider*

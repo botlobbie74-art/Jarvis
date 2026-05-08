@@ -98,6 +98,51 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="User not found")
     return res.data[0]
 
+# ============ BILLING (CREDITS) ============
+CREDIT_PRICES = {"1000": 10.0, "5000": 40.0, "10000": 70.0}
+TOKEN_TO_CREDIT_RATE = 0.001
+BUILD_FLAT_FEE = 5.0
+
+def _user_credits(uid: str) -> float:
+    res = sb.table("jarvis_users").select("credits").eq("id", uid).execute()
+    if res.data and res.data[0]:
+        return float(res.data[0].get("credits", 0.0))
+    return 0.0
+
+def _update_credits(uid: str, amount: float, description: str = None):
+    res = sb.table("jarvis_users").select("credits").eq("id", uid).execute()
+    current = float(res.data[0].get("credits", 0.0)) if res.data else 0.0
+    sb.table("jarvis_users").update({"credits": current + amount}).eq("id", uid).execute()
+    try:
+        sb.table("jarvis_credit_transactions").insert({
+            "user_id": uid, "amount": amount,
+            "type": "topup" if amount > 0 else "consumption", "description": description
+        }).execute()
+    except Exception:
+        pass
+    return current + amount
+
+def _check_credits(uid: str, required: float = 0.0):
+    balance = _user_credits(uid)
+    if balance < required:
+        raise HTTPException(402, f"Insufficient credits. Balance: {balance:.2f}. Please top up.")
+
+def _consume_credits(uid: str, amount: float, description: str):
+    _check_credits(uid, amount)
+    _update_credits(uid, -amount, description)
+
+def _bump_usage(uid: str, action: str):
+    pass  # usage tracked via credit transactions
+
+def _user_plan(uid: str) -> dict:
+    try:
+        sub = sb.table("jarvis_subscriptions").select("*").eq("user_id", uid).limit(1).execute()
+        if sub.data:
+            return sub.data[0]
+    except Exception:
+        pass
+    return {"plan": "free", "status": "active"}
+
 # ============ AUTH ============
 @api_router.get("/")
 async def root(): return {"status": "ok", "message": "Jarvis API running"}
@@ -839,10 +884,16 @@ async def github_callback(code: str = None, state: str = None, error: str = None
         return HTMLResponse(f"<p>GitHub Error: {tok.get('error_description')}</p>")
     
     meta = {"access_token": tok.get("access_token"), "scope": tok.get("scope")}
-    sb.table("jarvis_plugins").upsert({
-        "user_id": uid, "plugin_id": "github", "plugin_name": "GitHub",
-        "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta
-    }).execute()
+    existing = sb.table("jarvis_plugins").select("id").eq("user_id", uid).eq("plugin_id", "github").execute()
+    if existing.data:
+        sb.table("jarvis_plugins").update({
+            "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta
+        }).eq("user_id", uid).eq("plugin_id", "github").execute()
+    else:
+        sb.table("jarvis_plugins").insert({
+            "id": str(uuid.uuid4()), "user_id": uid, "plugin_id": "github", "plugin_name": "GitHub",
+            "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta
+        }).execute()
     return HTMLResponse("<script>window.close()</script><p>GitHub connected. You can close this window.</p>")
 
 # ============ MULTI-AGENT JOBS / STATE ============
@@ -1036,7 +1087,7 @@ async def telegram_webhook(payload: dict):
             log.info(f"Telegram message as candidate: {candidate}")
 
         # Link-code processing
-        if len(candidate) == 6 and candidate.isalnum() and candidate.isupper():
+        if len(candidate) == 6 and candidate.isalnum():
             log.info(f"Processing link code candidate: {candidate}")
             # Search DB for this code in pending links
             all_pending = sb.table("jarvis_plugins").select("*").eq("plugin_id", "telegram_linking").execute().data
@@ -1065,10 +1116,16 @@ async def telegram_webhook(payload: dict):
 
             # Success: link the account
             meta = {"telegram_user_id": tg_user_id, "telegram_chat_id": chat_id, "telegram_username": tg_username}
-            sb.table("jarvis_plugins").upsert({
-                "user_id": uid, "plugin_id": "telegram", "plugin_name": "Telegram",
-                "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta
-            }).execute()
+            existing_tg = sb.table("jarvis_plugins").select("id").eq("user_id", uid).eq("plugin_id", "telegram").execute()
+            if existing_tg.data:
+                sb.table("jarvis_plugins").update({
+                    "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta
+                }).eq("user_id", uid).eq("plugin_id", "telegram").execute()
+            else:
+                sb.table("jarvis_plugins").insert({
+                    "id": str(uuid.uuid4()), "user_id": uid, "plugin_id": "telegram", "plugin_name": "Telegram",
+                    "status": "connected", "connected_at": datetime.now(timezone.utc).isoformat(), "metadata": meta
+                }).execute()
             # Clean up linking entry
             sb.table("jarvis_plugins").delete().eq("user_id", uid).eq("plugin_id", "telegram_linking").execute()
 
@@ -1091,139 +1148,101 @@ async def telegram_webhook(payload: dict):
 
         # ... rest of the assistant logic ...
 
-    # Reuse or create a Telegram chat session
-    existing_sessions = sb.table("jarvis_chat_sessions").select("*").eq("user_id", uid).eq("assistant_id", "jarvis").order("updated_at", desc=True).limit(1).execute()
-    if existing_sessions.data:
-        sid = existing_sessions.data[0]["id"]
-    else:
-        sid = str(uuid.uuid4())
-        sb.table("jarvis_chat_sessions").insert({"id": sid, "user_id": uid, "title": "Telegram", "assistant_id": "jarvis"}).execute()
+        # Reuse or create a Telegram chat session
+        existing_sessions = sb.table("jarvis_chat_sessions").select("*").eq("user_id", uid).eq("assistant_id", "jarvis").order("updated_at", desc=True).limit(1).execute()
+        if existing_sessions.data:
+            sid = existing_sessions.data[0]["id"]
+        else:
+            sid = str(uuid.uuid4())
+            sb.table("jarvis_chat_sessions").insert({"id": sid, "user_id": uid, "title": "Telegram", "assistant_id": "jarvis"}).execute()
 
-    # Build system prompt with project context
-    sysm = BUILDER_AWARE_SYSTEM
-    try:
-        custom = sb.table("jarvis_personas").select("*").eq("user_id", uid).eq("assistant_id", "jarvis").execute()
-        if custom.data and custom.data[0].get("system_prompt"):
-            sysm = custom.data[0]["system_prompt"] + "\n\n" + BUILDER_AWARE_SYSTEM
-    except Exception: pass
-
-    # Inject project context
-    try:
-        projects = sb.table("jarvis_projects").select("*").eq("user_id", uid).order("updated_at", desc=True).limit(5).execute().data
-        if projects:
-            project_ctx = "\n\nUSER'S CURRENT PROJECTS:\n" + "\n".join(_summarize_project(p) for p in projects)
-            sysm += project_ctx
-    except Exception: pass
-
-    # Inject connected plugins
-    try:
-        plugs = sb.table("jarvis_plugins").select("*").eq("user_id", uid).eq("status", "connected").execute()
-        if plugs.data:
-            names = ", ".join(p["plugin_name"] for p in plugs.data)
-            sysm += f"\n\nUser has these tools connected: {names}."
-    except Exception: pass
-
-    try:
-        # Get last few messages for context
-        prior = sb.table("jarvis_chat_messages").select("*").eq("session_id", sid).order("created_at").execute().data
-        prior = prior[-10:]
-        ctx = "".join(f"\n{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in prior)
-        full = (ctx + f"\nUser: {text}").strip() if ctx else text
-        
-        res = await router_call("chat", sysm + "\n\nUser is messaging via Telegram. Keep replies relatively concise.", full, sb=sb)
-        reply = res["content"]
-    except Exception as e:
-        log.exception("telegram chat err")
-        reply = f"Sorry, I hit an error: {str(e)[:100]}"
-
-    # Detect actions in response
-    builder_action = None
-    task_action = None
-    
-    if "BUILDER_ACTION:" in reply:
-        parts = reply.split("BUILDER_ACTION:", 1)
-        action_text = parts[1].strip().split("\n")[0].strip()
-        
-        # Try to find a project ID in the action text or use the most recent one
-        target_pid = None
+        # Build system prompt with project context
+        sysm = BUILDER_AWARE_SYSTEM
         try:
-            projects = sb.table("jarvis_projects").select("id").eq("user_id", uid).order("updated_at", desc=True).limit(1).execute().data
-            if projects: target_pid = projects[0]["id"]
-        except Exception: pass
-        
-        if target_pid:
-            # Enqueue a job for the builder
-            job = {"id": str(uuid.uuid4()), "project_id": target_pid, "agent_type": "coder", 
-                   "status": "queued", "payload": {"instruction": action_text, "source": "telegram_relay"}}
-            sb.table("jarvis_agent_jobs").insert(job).execute()
-            asyncio.create_task(_run_job(job["id"]))
-            builder_action = {"description": action_text, "project_id": target_pid}
-
-    if "TASK_ACTION:" in reply:
-        parts = reply.split("TASK_ACTION:", 1)
-        action_text = parts[1].strip().split("\n")[0].strip()
-        task_action = {"description": action_text}
-        # Enqueue task
-        try:
-            tid = str(uuid.uuid4())
-            sb.table("jarvis_tasks").insert({"id": tid, "user_id": uid, "title": action_text, "status": "active"}).execute()
-            asyncio.create_task(_run_task(tid))
+            custom = sb.table("jarvis_personas").select("*").eq("user_id", uid).eq("assistant_id", "jarvis").execute()
+            if custom.data and custom.data[0].get("system_prompt"):
+                sysm = custom.data[0]["system_prompt"] + "\n\n" + BUILDER_AWARE_SYSTEM
         except Exception: pass
 
-    sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "user", "content": text, "assistant_id": "jarvis"}).execute()
-    sb.table("jarvis_chat_messages").insert({
-        "id": str(uuid.uuid4()), "session_id": sid, "role": "assistant", 
-        "content": reply, "assistant_id": "jarvis",
-        "metadata": {
-            "builder_action": builder_action,
-            "task_action": task_action
-        } if (builder_action or task_action) else None
-    }).execute()
-    
-    await _tg_send(chat_id, reply)
-    return {"ok": True}
+        # Inject project context
+        try:
+            projects = sb.table("jarvis_projects").select("*").eq("user_id", uid).order("updated_at", desc=True).limit(5).execute().data
+            if projects:
+                project_ctx = "\n\nUSER'S CURRENT PROJECTS:\n" + "\n".join(_summarize_project(p) for p in projects)
+                sysm += project_ctx
+        except Exception: pass
 
-    # ============ BILLING (CREDITS) ============
-    CREDIT_PRICES = {
-        "1000": 10.0,
-        "5000": 40.0,
-        "10000": 70.0,
-    }
+        # Inject connected plugins
+        try:
+            plugs = sb.table("jarvis_plugins").select("*").eq("user_id", uid).eq("status", "connected").execute()
+            if plugs.data:
+                names = ", ".join(p["plugin_name"] for p in plugs.data)
+                sysm += f"\n\nUser has these tools connected: {names}."
+        except Exception: pass
 
-    # Token pricing: 1 credit = 1000 tokens (approx)
-    TOKEN_TO_CREDIT_RATE = 0.001
+        try:
+            # Get last few messages for context
+            prior = sb.table("jarvis_chat_messages").select("*").eq("session_id", sid).order("created_at").execute().data
+            prior = prior[-10:]
+            ctx = "".join(f"\n{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in prior)
+            full = (ctx + f"\nUser: {text}").strip() if ctx else text
+            
+            res = await router_call("chat", sysm + "\n\nUser is messaging via Telegram. Keep replies relatively concise.", full, sb=sb)
+            reply = res["content"]
+        except Exception as e:
+            log.exception("telegram chat err")
+            reply = f"Sorry, I hit an error: {str(e)[:100]}"
 
-    # Cost per build: a flat fee in credits + token cost
-    BUILD_FLAT_FEE = 5.0
+        # Detect actions in response
+        builder_action = None
+        task_action = None
+        
+        if "BUILDER_ACTION:" in reply:
+            parts = reply.split("BUILDER_ACTION:", 1)
+            action_text = parts[1].strip().split("\n")[0].strip()
+            
+            # Try to find a project ID in the action text or use the most recent one
+            target_pid = None
+            try:
+                projects = sb.table("jarvis_projects").select("id").eq("user_id", uid).order("updated_at", desc=True).limit(1).execute().data
+                if projects: target_pid = projects[0]["id"]
+            except Exception: pass
+            
+            if target_pid:
+                # Enqueue a job for the builder
+                job = {"id": str(uuid.uuid4()), "project_id": target_pid, "agent_type": "coder", 
+                       "status": "queued", "payload": {"instruction": action_text, "source": "telegram_relay"}}
+                sb.table("jarvis_agent_jobs").insert(job).execute()
+                asyncio.create_task(_run_job(job["id"]))
+                builder_action = {"description": action_text, "project_id": target_pid}
 
-    def _user_credits(uid: str) -> float:
-        res = sb.table("jarvis_users").select("credits").eq("id", uid).execute()
-        if res.data and res.data[0]:
-            return float(res.data[0].get("credits", 0.0))
-        return 0.0
+        if "TASK_ACTION:" in reply:
+            parts = reply.split("TASK_ACTION:", 1)
+            action_text = parts[1].strip().split("\n")[0].strip()
+            task_action = {"description": action_text}
+            # Enqueue task
+            try:
+                tid = str(uuid.uuid4())
+                sb.table("jarvis_tasks").insert({"id": tid, "user_id": uid, "title": action_text, "status": "active"}).execute()
+                asyncio.create_task(_run_task(tid))
+            except Exception: pass
 
-    def _update_credits(uid: str, amount: float, description: str = None):
-        res = sb.table("jarvis_users").select("credits").eq("id", uid).execute()
-        current = float(res.data[0].get("credits", 0.0)) if res.data else 0.0
-        new_balance = current + amount
-        sb.table("jarvis_users").update({"credits": new_balance}).eq("id", uid).execute()
-
-        sb.table("jarvis_credit_transactions").insert({
-            "user_id": uid,
-            "amount": amount,
-            "type": "topup" if amount > 0 else "consumption",
-            "description": description
+        sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "user", "content": text, "assistant_id": "jarvis"}).execute()
+        sb.table("jarvis_chat_messages").insert({
+            "id": str(uuid.uuid4()), "session_id": sid, "role": "assistant", 
+            "content": reply, "assistant_id": "jarvis",
+            "metadata": {
+                "builder_action": builder_action,
+                "task_action": task_action
+            } if (builder_action or task_action) else None
         }).execute()
-        return new_balance
+        
+        await _tg_send(chat_id, reply)
+        return {"ok": True}
 
-    def _check_credits(uid: str, required: float = 0.0):
-        balance = _user_credits(uid)
-        if balance < required:
-            raise HTTPException(402, f"Insufficient credits. Current balance: {balance:.2f}. Please top up.")
-
-    def _consume_credits(uid: str, amount: float, description: str):
-        _check_credits(uid, amount)
-        _update_credits(uid, -amount, description)
+    except Exception as e:
+        log.exception("telegram webhook err")
+        return {"ok": True}
 
 @api_router.get("/billing/plan")
 async def get_plan(user=Depends(get_current_user)):
@@ -1353,6 +1372,72 @@ async def download_project_zip(pid: str, user=Depends(get_current_user)):
         media_type="application/x-zip-compressed",
         headers={"Content-Disposition": f"attachment; filename=project-{pid[:8]}.zip"}
     )
+
+@api_router.get("/projects/{pid}/preview")
+async def preview_project(pid: str, user=Depends(get_current_user)):
+    """Return a self-contained HTML page that previews the project in an iframe."""
+    from fastapi.responses import HTMLResponse
+    proj = sb.table("jarvis_projects").select("id", "name", "description").eq("id", pid).eq("user_id", user["id"]).execute()
+    if not proj.data: raise HTTPException(404, "Not found")
+    files = sb.table("jarvis_project_files").select("*").eq("project_id", pid).execute().data
+
+    if not files:
+        return HTMLResponse(f"""<!DOCTYPE html><html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0a0a0c;color:#fff">
+        <div style="text-align:center"><h2 style="color:#22d3ee">No files yet</h2><p style="opacity:.5">Build the project to see a preview</p></div></body></html>""")
+
+    css_files = [f for f in files if f["path"].endswith(".css")]
+    jsx_files = [f for f in files if f["path"].endswith((".jsx", ".tsx"))]
+    js_files = [f for f in files if f["path"].endswith(".js") and not f["path"].endswith(".config.js")]
+    html_file = next((f for f in files if f["path"].endswith(".html")), None)
+
+    inline_css = "\n".join(f["content"] for f in css_files)
+
+    # Find main component - prefer App.jsx/tsx
+    app_component = next((f for f in jsx_files if "App" in f["path"].split("/")[-1]), None) or (jsx_files[0] if jsx_files else None)
+
+    if app_component:
+        # Build React standalone preview using Babel CDN
+        all_jsx = "\n\n".join(f"// --- {f['path']} ---\n{f['content']}" for f in jsx_files)
+        app_name = app_component["path"].split("/")[-1].replace(".jsx", "").replace(".tsx", "")
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Preview</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{{box-sizing:border-box}}body{{margin:0;font-family:sans-serif}}{inline_css}</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+{all_jsx}
+try {{
+  const rootEl = document.getElementById('root');
+  ReactDOM.createRoot(rootEl).render(React.createElement({app_name}));
+}} catch(e) {{
+  document.getElementById('root').innerHTML = '<div style="padding:2rem;color:#ef4444;font-family:monospace">Preview error: ' + e.message + '</div>';
+}}
+</script>
+</body></html>"""
+    elif html_file:
+        html = html_file["content"]
+        for f in css_files:
+            fname = f["path"].split("/")[-1]
+            html = html.replace(f'href="{fname}"', f'').replace(f"href='{fname}'", "")
+        html = html.replace("</head>", f"<style>{inline_css}</style></head>", 1)
+        for f in js_files:
+            fname = f["path"].split("/")[-1]
+            html = html.replace(f'src="{fname}"', "").replace(f"src='{fname}'", "")
+        html = html.replace("</body>", f"<script>{chr(10).join(f['content'] for f in js_files)}</script></body>", 1)
+    else:
+        file_list = "\n".join(f"<li style='padding:4px 0;color:#94a3b8'>{f['path']}</li>" for f in files)
+        html = f"""<!DOCTYPE html><html><body style="font-family:sans-serif;padding:2rem;background:#0f172a;color:#f1f5f9">
+        <h2 style="color:#22d3ee">Project Files</h2><ul style="list-style:none;padding:0">{file_list}</ul></body></html>"""
+
+    return HTMLResponse(html, headers={"X-Frame-Options": "SAMEORIGIN", "Content-Security-Policy": "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:"})
 
 # ============ PERSONAS (custom system prompts) ============
 class PersonaIn(BaseModel):

@@ -7,17 +7,17 @@ const PRICING = [
   {
     id: 'free', name: 'Free', price: '0', tagline: 'Try Jarvis for free',
     cta: 'Get started', highlight: false,
-    features: ['5 app builds / month', '100 chat messages / month', 'Google + GitHub plugins', '1 GitHub repo push', 'Community support'],
+    features: ['1000 Free Credits to start', 'Pay as you go afterwards', 'Google + GitHub plugins', '1 GitHub repo push', 'Community support'],
   },
   {
     id: 'starter', name: 'Starter', price: '19.99', tagline: 'For solo builders',
     cta: 'Start building', highlight: true, badge: 'Most popular',
-    features: ['50 app builds / month', 'Unlimited chat', 'All plugins (Telegram + Discord)', 'Unlimited GitHub pushes', 'Priority email support', 'Background tasks'],
+    features: ['5000 Credits included / month', 'Unlimited chat', 'All plugins (Telegram + Discord)', 'Unlimited GitHub pushes', 'Priority email support', 'Background tasks'],
   },
   {
     id: 'pro', name: 'Pro', price: '49.99', tagline: 'For teams & power users',
     cta: 'Go Pro', highlight: false,
-    features: ['Unlimited builds', 'Unlimited chat', 'All plugins + custom plugins', 'Multi-seat (5 users)', 'Priority chat support', 'Advanced agent orchestration', 'Early access to new features'],
+    features: ['15000 Credits included / month', 'Unlimited chat', 'All plugins + custom plugins', 'Multi-seat (5 users)', 'Priority chat support', 'Advanced agent orchestration', 'Early access to new features'],
   },
 ];
 
