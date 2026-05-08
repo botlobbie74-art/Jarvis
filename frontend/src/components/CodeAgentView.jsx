@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
 import Editor from '@monaco-editor/react';
-import { Loader2, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Hammer, Rocket, FilePlus, FilePenLine, Layers, Smartphone, Globe, Lightbulb, Paperclip, ArrowUp, Sun, Moon, X as XIcon } from 'lucide-react';
+import { Loader2, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Hammer, Rocket, FilePlus, FilePenLine, Layers, Smartphone, Globe, Lightbulb, Paperclip, ArrowUp, Sun, Moon, X as XIcon, Download, ChevronDown, Check } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
 
@@ -15,6 +15,9 @@ export default function CodeAgentView() {
   const [creating, setCreating] = useState(false);
   const [building, setBuilding] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [showRepoDropdown, setShowRepoDropdown] = useState(false);
+  const [selectedRepo, setSelectedRepo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [suggestions, setSuggestions] = useState([]);
   const [attachedFile, setAttachedFile] = useState(null);
@@ -116,6 +119,23 @@ export default function CodeAgentView() {
     } catch (e) {
       toast({ title: 'GitHub push failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
     } finally { setPushing(false); }
+  };
+
+  const downloadZip = async () => {
+    if (!active) return;
+    setDownloading(true);
+    try {
+      const response = await api.get(`/projects/${active.project.id}/download-zip`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${active.project.name || 'project'}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (e) {
+      toast({ title: 'Download failed', variant: 'destructive' });
+    } finally { setDownloading(false); }
   };
 
   const remove = async (id) => {
@@ -270,10 +290,36 @@ export default function CodeAgentView() {
           {building ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
           {building ? 'Building...' : (active.files?.length ? 'Rebuild' : 'Build')}
         </button>
-        <button onClick={pushGithub} disabled={pushing || !active.files?.length}
+
+        <div className="relative">
+          <button onClick={() => setShowRepoDropdown(!showRepoDropdown)} disabled={pushing || !active.files?.length}
+            className={`h-9 px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-50 transition-colors ${dark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}>
+            <Github className="w-3.5 h-3.5" /> 
+            {selectedRepo ? selectedRepo : 'Target Repo'}
+            <ChevronDown className="w-3 h-3 ml-1" />
+          </button>
+          {showRepoDropdown && (
+            <div className={`absolute top-full right-0 mt-1 w-56 rounded-xl border shadow-xl z-50 overflow-hidden ${dark ? 'bg-[#111114] border-white/10' : 'bg-white border-slate-200'}`}>
+              <div className="p-1">
+                <button onClick={() => { setSelectedRepo(null); pushGithub(); setShowRepoDropdown(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-[12px] flex items-center justify-between transition-colors ${dark ? 'hover:bg-white/5 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
+                  <span>Create new repository</span>
+                  {!selectedRepo && <Check className="w-3 h-3 text-emerald-500" />}
+                </button>
+                <div className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-bold ${dark ? 'text-white/30' : 'text-slate-400'}`}>Existing Repos (Placeholder)</div>
+                <button onClick={() => { setSelectedRepo(active.project.name); setShowRepoDropdown(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-[12px] flex items-center justify-between transition-colors ${dark ? 'hover:bg-white/5 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
+                  <span className="truncate">{active.project.name}</span>
+                  {selectedRepo === active.project.name && <Check className="w-3 h-3 text-emerald-500" />}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <button onClick={downloadZip} disabled={downloading || !active.files?.length}
           className={`h-9 px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 disabled:opacity-50 transition-colors ${dark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}>
-          {pushing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Github className="w-3.5 h-3.5" />} Push to GitHub
+          {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} ZIP
         </button>
+
         <button onClick={toggle} className={`w-9 h-9 rounded-full flex items-center justify-center ${dark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-white border border-slate-200 hover:bg-slate-100'}`}>
           {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>

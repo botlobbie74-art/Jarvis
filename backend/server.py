@@ -2,7 +2,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-import os, logging, uuid, json, asyncio
+import os, logging, uuid, json, asyncio, io, zipfile
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
@@ -94,7 +94,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 # ============ AUTH ============
 @api_router.get("/")
-async def root(): return {"message": "Jarvis API running"}
+async def root(): return {"status": "ok", "message": "Jarvis API running"}
 
 @api_router.post("/auth/signup", response_model=TokenResponse)
 async def signup(payload: UserSignup):
@@ -163,7 +163,7 @@ async def supabase_exchange(payload: SupabaseExchangeIn):
 
 # ============ CHAT ============
 ASSISTANT_PERSONAS = {
-    "jarvis": "You are Jarvis, a Tech co-founder AI assistant. You review code, architect systems, and ship features. Be concise, technical, and direct.",
+    "jarvis": "You are Jarvis, a highly capable personal AI assistant. You handle tasks, manage projects, and act as the central hub for the user's digital life. You are helpful, proactive, and efficient. You are NOT the coder; your job is to coordinate and assist the user.",
     "judy": "You are Judy, a Sales lead AI assistant. Track pipelines, prep pitches. Be friendly and goal-driven.",
     "alfred": "You are Alfred, an Executive assistant AI. Manage calendars, draft emails. Polite, organized, meticulous.",
     "venus": "You are Venus, a Content marketer AI. Write posts, plan content. Creative, on-brand, engaging.",
@@ -206,32 +206,52 @@ def _summarize_project(p: dict) -> str:
     try:
         files_count = sb.table("jarvis_project_files").select("id", count="exact").eq("project_id", p["id"]).execute().count or 0
     except Exception: pass
+    
+    # Get latest activity feed
+    activity = ""
+    try:
+        jobs = sb.table("jarvis_agent_jobs").select("*").eq("project_id", p["id"]).order("created_at", desc=True).limit(3).execute().data
+        if jobs:
+            activity = "\n  Latest Activity:\n" + "\n".join([f"    - {j['agent_type']} ({j['status']}): {j['payload'].get('path') or j['payload'].get('instruction') or 'Processing...'}" for j in jobs])
+    except Exception: pass
+
     return (
-        f"- Project: {p['name']} (status: {p.get('status', 'unknown')})\n"
+        f"- Project: {p['name']} (ID: {p['id']}, status: {p.get('status', 'unknown')})\n"
         f"  Description: {p.get('description', '')[:120]}\n"
         f"  Tech: {tech_str or 'not planned yet'}\n"
-        f"  Progress: {steps_done}/{steps_total} steps, {files_count} files generated\n"
+        f"  Progress: {steps_done}/{steps_total} steps, {files_count} files generated{activity}\n"
         f"  Summary: {plan.get('summary', '')[:150]}"
     )
 
-BUILDER_AWARE_SYSTEM = """You are Jarvis, an autonomous AI engineer and personal assistant.
+BUILDER_AWARE_SYSTEM = """You are Jarvis, a highly capable personal AI assistant.
 
-You have FULL visibility into the user's app builder projects. When they ask about a project, use the project context provided to give an accurate, specific summary.
+You have FULL visibility into the user's App Builder projects and connected plugins. You are the relay between the user and the specialized agents (Coder, Task Worker).
+
+YOUR ROLE:
+1. PERSONAL ASSISTANT: Help the user with general tasks, questions, and coordination.
+2. STATUS REPORTER: When asked about a project (e.g. "How is project X going?"), look at the project context provided and summarize the recent activity and current state. The App Builder always reports what it's doing, so you should relay that.
+3. RELAY TO BUILDER: When the user wants to change or do something in a project (e.g. "For project X, add a login page"), you must transmit this instruction to the App Builder.
+4. RELAY TO TASKS: When the user wants to perform an automation (e.g. "Get YouTube stats and put them in Sheets"), you must transmit this as a Task.
 
 BUILDER INTEGRATION:
-When the user asks you to do something in the builder (e.g., "add a feature", "change the design", "fix a bug in the landing page"), you MUST respond in this format:
-
-First, give a brief natural reply confirming what you're going to do.
+To relay an instruction to the App Builder, you MUST respond in this format:
+First, a brief natural reply to the user.
 Then on a new line, output EXACTLY:
-BUILDER_ACTION: <clear one-sentence instruction for the builder>
+BUILDER_ACTION: <clear instruction for the builder>
+
+TASK INTEGRATION:
+To relay an automation task (like YouTube/Google Sheets), you MUST respond in this format:
+First, a brief natural reply.
+Then on a new line, output EXACTLY:
+TASK_ACTION: <clear description of the automation task>
 
 Example:
-User: "Tell builder to add a dark mode toggle to my app"
-Jarvis: Sure! I'll instruct the builder to add a dark mode toggle.
-BUILDER_ACTION: Add a dark mode toggle button to the navbar that switches between light and dark themes.
+User: "Take stats of my last 3 YouTube videos and put them in a Google Sheet."
+Jarvis: I'll take care of that! I'm creating a task to fetch your latest YouTube stats and export them to your Google Sheet.
+TASK_ACTION: Fetch stats for the last 3 YouTube videos and append to Google Sheet 'YouTube Stats'.
 
-When answering questions (not triggering actions), respond normally without BUILDER_ACTION.
-Always be concise and direct."""
+When answering general questions or giving status updates, do NOT use these actions.
+Always be concise, proactive, and keep the user informed via Telegram about the progress."""
 
 @api_router.post("/chat/send")
 async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
@@ -253,7 +273,7 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
 
     # Inject project context
     try:
-        projects = sb.table("jarvis_projects").select("*").eq("user_id", user["id"]).order("updated_at", desc=True).limit(10).execute().data
+        projects = sb.table("jarvis_projects").select("*").eq("user_id", user["id"]).order("updated_at", desc=True).limit(5).execute().data
         if projects:
             project_ctx = "\n\nUSER'S CURRENT PROJECTS:\n" + "\n".join(_summarize_project(p) for p in projects)
             sysm += project_ctx
@@ -277,14 +297,28 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
     except Exception as e:
         log.exception("LLM err"); reply = f"(LLM error: {str(e)[:200]})"
 
-    # Detect BUILDER_ACTION in response
+    # Detect actions in response
     builder_action = None
+    task_action = None
     display_content = reply
+    
     if "BUILDER_ACTION:" in reply:
         parts = reply.split("BUILDER_ACTION:", 1)
         display_content = parts[0].strip()
         action_text = parts[1].strip().split("\n")[0].strip()
         builder_action = {"description": action_text, "type": "instruction"}
+    
+    if "TASK_ACTION:" in reply:
+        parts = reply.split("TASK_ACTION:", 1)
+        if display_content == reply: display_content = parts[0].strip()
+        action_text = parts[1].strip().split("\n")[0].strip()
+        task_action = {"description": action_text}
+        # Enqueue task
+        try:
+            tid = str(uuid.uuid4())
+            sb.table("jarvis_tasks").insert({"id": tid, "user_id": user["id"], "title": action_text, "status": "active"}).execute()
+            asyncio.create_task(_run_task(tid))
+        except Exception: pass
 
     asst = {"id": str(uuid.uuid4()), "session_id": payload.session_id, "role": "assistant",
             "content": reply, "assistant_id": "jarvis"}
@@ -296,8 +330,8 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
 
     row = sb.table("jarvis_chat_messages").select("*").eq("id", asst["id"]).single().execute().data
     row["display_content"] = display_content
-    if builder_action:
-        row["builder_action"] = builder_action
+    if builder_action: row["builder_action"] = builder_action
+    if task_action: row["task_action"] = task_action
     return row
 
 # ============ PLUGINS ============
@@ -335,16 +369,126 @@ async def toggle_plugin(payload: PluginToggleIn, user=Depends(get_current_user))
     return {"status": "disconnected", "plugin_id": payload.plugin_id}
 
 # ============ TASKS ============
+# ============ TASKS & AUTOMATIONS ============
+async def _get_plugin_token(uid: str, plugin_id: str) -> Optional[str]:
+    res = sb.table("jarvis_plugins").select("metadata").eq("user_id", uid).eq("plugin_id", plugin_id).execute()
+    if res.data:
+        meta = res.data[0].get("metadata") or {}
+        # If linked to google, get token from google plugin
+        if meta.get("linked_to") == "google":
+            return await _get_plugin_token(uid, "google")
+        return meta.get("access_token")
+    return None
+
+async def _yt_get_stats(token: str, max_results: int = 3):
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    # Get user's channel videos
+    async with httpx.AsyncClient() as cli:
+        # First get the 'uploads' playlist ID
+        r = await cli.get("https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true", headers=headers)
+        if r.status_code != 200: return f"YT Error: {r.text}"
+        uploads_id = r.json()["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        
+        # Get last N videos from that playlist
+        r = await cli.get(f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId={uploads_id}&maxResults={max_results}", headers=headers)
+        if r.status_code != 200: return f"YT Error: {r.text}"
+        items = r.json().get("items", [])
+        
+        results = []
+        for item in items:
+            video_id = item["contentDetails"]["videoId"]
+            title = item["snippet"]["title"]
+            # Get stats for this video
+            rs = await cli.get(f"https://www.googleapis.com/youtube/v3/videos?part=statistics&id={video_id}", headers=headers)
+            stats = rs.json()["items"][0]["statistics"] if rs.status_code == 200 else {}
+            results.append({
+                "title": title,
+                "views": stats.get("viewCount", "0"),
+                "likes": stats.get("likeCount", "0"),
+                "comments": stats.get("commentCount", "0")
+            })
+        return results
+
+async def _sheets_append(token: str, spreadsheet_name: str, rows: List[List[Any]]):
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    async with httpx.AsyncClient() as cli:
+        # Find the spreadsheet by name
+        r = await cli.get(f"https://www.googleapis.com/drive/v3/files?q=name='{spreadsheet_name}' and mimeType='application/vnd.google-apps.spreadsheet'", headers=headers)
+        if r.status_code != 200: return f"Drive Error: {r.text}"
+        files = r.json().get("files", [])
+        if not files:
+            # Create if not exists
+            r = await cli.post("https://sheets.googleapis.com/v4/spreadsheets", headers=headers, json={"properties": {"title": spreadsheet_name}})
+            if r.status_code != 200: return f"Sheets Create Error: {r.text}"
+            spreadsheet_id = r.json()["spreadsheetId"]
+        else:
+            spreadsheet_id = files[0]["id"]
+            
+        # Append rows
+        body = {"values": rows}
+        r = await cli.post(f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/A1:append?valueInputOption=USER_ENTERED", 
+                           headers=headers, json=body)
+        if r.status_code != 200: return f"Sheets Append Error: {r.text}"
+        return "success"
+
+async def _run_task(task_id: str):
+    task = sb.table("jarvis_tasks").select("*").eq("id", task_id).single().execute().data
+    if not task: return
+    uid = task["user_id"]
+    title = task["title"].lower()
+    
+    sb.table("jarvis_tasks").update({"status": "processing"}).eq("id", task_id).execute()
+    
+    try:
+        result_msg = "Task completed."
+        # YouTube -> Sheets logic
+        if "youtube" in title and ("sheet" in title or "stats" in title):
+            yt_token = await _get_plugin_token(uid, "youtube")
+            gs_token = await _get_plugin_token(uid, "google")
+            
+            if not yt_token or not gs_token:
+                result_msg = "Error: YouTube or Google Sheets not connected."
+            else:
+                stats = await _yt_get_stats(yt_token)
+                if isinstance(stats, str):
+                    result_msg = stats
+                else:
+                    rows = [[datetime.now().strftime("%Y-%m-%d %H:%M"), s["title"], s["views"], s["likes"], s["comments"]] for s in stats]
+                    # Add header if needed? Sheets append handles it well
+                    res = await _sheets_append(gs_token, "Jarvis Automation Stats", rows)
+                    result_msg = f"Successfully exported {len(stats)} video stats to Google Sheets." if res == "success" else res
+        
+        # Add more automations here...
+        else:
+            # Generic LLM-powered task handling? 
+            # For now, just mark as done if no specific logic
+            result_msg = "Task recognized but no specific automation logic implemented for this title yet."
+
+        sb.table("jarvis_tasks").update({"status": "done", "result": result_msg, "finished_at": datetime.now(timezone.utc).isoformat()}).eq("id", task_id).execute()
+        
+        # If user is on telegram, notify them
+        plug = sb.table("jarvis_plugins").select("metadata").eq("user_id", uid).eq("plugin_id", "telegram").execute()
+        if plug.data:
+            chat_id = plug.data[0].get("metadata", {}).get("telegram_chat_id")
+            if chat_id:
+                await _tg_send(chat_id, f"✅ Task Finished: {task['title']}\n{result_msg}")
+
+    except Exception as e:
+        log.exception("task execution err")
+        sb.table("jarvis_tasks").update({"status": "failed", "error": str(e)[:400]}).eq("id", task_id).execute()
+
 @api_router.get("/tasks")
 async def list_tasks(user=Depends(get_current_user)):
     return sb.table("jarvis_tasks").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute().data
 
 @api_router.post("/tasks")
 async def create_task(payload: TaskIn, user=Depends(get_current_user)):
-    doc = {"id": str(uuid.uuid4()), "user_id": user["id"], "title": payload.title,
+    tid = str(uuid.uuid4())
+    doc = {"id": tid, "user_id": user["id"], "title": payload.title,
            "schedule": payload.schedule, "plugins": payload.plugins, "status": "active"}
     sb.table("jarvis_tasks").insert(doc).execute()
-    return sb.table("jarvis_tasks").select("*").eq("id", doc["id"]).single().execute().data
+    asyncio.create_task(_run_task(tid))
+    return sb.table("jarvis_tasks").select("*").eq("id", tid).single().execute().data
 
 @api_router.delete("/tasks/{task_id}")
 async def delete_task(task_id: str, user=Depends(get_current_user)):
@@ -867,16 +1011,87 @@ async def telegram_webhook(payload: dict):
         sid = str(uuid.uuid4())
         sb.table("jarvis_chat_sessions").insert({"id": sid, "user_id": uid, "title": "Telegram", "assistant_id": "jarvis"}).execute()
 
+    # Build system prompt with project context
+    sysm = BUILDER_AWARE_SYSTEM
     try:
-        sysm = ASSISTANT_PERSONAS["jarvis"] + "\n\nUser is messaging via Telegram. Keep replies concise (under 300 chars)."
-        res = await router_call("chat", sysm, text, sb=sb)
+        custom = sb.table("jarvis_personas").select("*").eq("user_id", uid).eq("assistant_id", "jarvis").execute()
+        if custom.data and custom.data[0].get("system_prompt"):
+            sysm = custom.data[0]["system_prompt"] + "\n\n" + BUILDER_AWARE_SYSTEM
+    except Exception: pass
+
+    # Inject project context
+    try:
+        projects = sb.table("jarvis_projects").select("*").eq("user_id", uid).order("updated_at", desc=True).limit(5).execute().data
+        if projects:
+            project_ctx = "\n\nUSER'S CURRENT PROJECTS:\n" + "\n".join(_summarize_project(p) for p in projects)
+            sysm += project_ctx
+    except Exception: pass
+
+    # Inject connected plugins
+    try:
+        plugs = sb.table("jarvis_plugins").select("*").eq("user_id", uid).eq("status", "connected").execute()
+        if plugs.data:
+            names = ", ".join(p["plugin_name"] for p in plugs.data)
+            sysm += f"\n\nUser has these tools connected: {names}."
+    except Exception: pass
+
+    try:
+        # Get last few messages for context
+        prior = sb.table("jarvis_chat_messages").select("*").eq("session_id", sid).order("created_at").execute().data
+        prior = prior[-10:]
+        ctx = "".join(f"\n{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in prior)
+        full = (ctx + f"\nUser: {text}").strip() if ctx else text
+        
+        res = await router_call("chat", sysm + "\n\nUser is messaging via Telegram. Keep replies relatively concise.", full, sb=sb)
         reply = res["content"]
     except Exception as e:
         log.exception("telegram chat err")
         reply = f"Sorry, I hit an error: {str(e)[:100]}"
 
+    # Detect actions in response
+    builder_action = None
+    task_action = None
+    
+    if "BUILDER_ACTION:" in reply:
+        parts = reply.split("BUILDER_ACTION:", 1)
+        action_text = parts[1].strip().split("\n")[0].strip()
+        
+        # Try to find a project ID in the action text or use the most recent one
+        target_pid = None
+        try:
+            projects = sb.table("jarvis_projects").select("id").eq("user_id", uid).order("updated_at", desc=True).limit(1).execute().data
+            if projects: target_pid = projects[0]["id"]
+        except Exception: pass
+        
+        if target_pid:
+            # Enqueue a job for the builder
+            job = {"id": str(uuid.uuid4()), "project_id": target_pid, "agent_type": "coder", 
+                   "status": "queued", "payload": {"instruction": action_text, "source": "telegram_relay"}}
+            sb.table("jarvis_agent_jobs").insert(job).execute()
+            asyncio.create_task(_run_job(job["id"]))
+            builder_action = {"description": action_text, "project_id": target_pid}
+
+    if "TASK_ACTION:" in reply:
+        parts = reply.split("TASK_ACTION:", 1)
+        action_text = parts[1].strip().split("\n")[0].strip()
+        task_action = {"description": action_text}
+        # Enqueue task
+        try:
+            tid = str(uuid.uuid4())
+            sb.table("jarvis_tasks").insert({"id": tid, "user_id": uid, "title": action_text, "status": "active"}).execute()
+            asyncio.create_task(_run_task(tid))
+        except Exception: pass
+
     sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "user", "content": text, "assistant_id": "jarvis"}).execute()
-    sb.table("jarvis_chat_messages").insert({"id": str(uuid.uuid4()), "session_id": sid, "role": "assistant", "content": reply, "assistant_id": "jarvis"}).execute()
+    sb.table("jarvis_chat_messages").insert({
+        "id": str(uuid.uuid4()), "session_id": sid, "role": "assistant", 
+        "content": reply, "assistant_id": "jarvis",
+        "metadata": {
+            "builder_action": builder_action,
+            "task_action": task_action
+        } if (builder_action or task_action) else None
+    }).execute()
+    
     await _tg_send(chat_id, reply)
     return {"ok": True}
 
@@ -1001,6 +1216,25 @@ async def webhook(request: Request):
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }).eq("user_id", uid).execute()
     return {"ok": True}
+
+@api_router.get("/projects/{pid}/download-zip")
+async def download_project_zip(pid: str, user=Depends(get_current_user)):
+    proj = sb.table("jarvis_projects").select("id").eq("id", pid).eq("user_id", user["id"]).execute()
+    if not proj.data: raise HTTPException(404, "Not found")
+    files = sb.table("jarvis_project_files").select("*").eq("project_id", pid).execute().data
+    
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for f in files:
+            zip_file.writestr(f["path"], f["content"])
+    
+    zip_buffer.seek(0)
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/x-zip-compressed",
+        headers={"Content-Disposition": f"attachment; filename=project-{pid[:8]}.zip"}
+    )
 
 # ============ PERSONAS (custom system prompts) ============
 class PersonaIn(BaseModel):
