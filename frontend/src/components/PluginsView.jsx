@@ -4,6 +4,7 @@ import { PLUGIN_ICONS, PLUGIN_ACCENT } from '../data/assistants';
 import { Loader2, Check, Plug, X as XIcon, ExternalLink, Copy } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
+import { t } from '../lib/i18n';
 
 export default function PluginsView() {
   const [plugins, setPlugins] = useState([]);

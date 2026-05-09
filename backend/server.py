@@ -3,6 +3,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from services.telegram_service import send_telegram_notification
+from config.agent_models_config import AGENT_MODELS
+import re
+import asyncio
 import os, logging, uuid, json, asyncio, io, zipfile
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
@@ -83,7 +87,7 @@ class TaskIn(BaseModel):
 
 class ProjectCreate(BaseModel):
     description: str
-    ultra: bool = False  # natural language description of app to build
+    thinking_mode: str = "normal"
     force_budget: bool = False # Bypass Budget Guard
 
 class PlanApprove(BaseModel):
@@ -164,25 +168,44 @@ def _check_credits(uid: str, required: float = 0.0):
 def _notify_low_credits(uid: str):
     """Mock helper for email notification when credits run out."""
     log.info(f"Jarvis Alert: Notifying {uid} via email that credits are depleted.")
+    asyncio.create_task(send_telegram_notification(uid, CREDIT_BLOCK_MESSAGE, sb))
 
-def _consume_credits_v2(uid: str, model: str, tier: str, usage: dict, description: str):
+def _consume_credits_v2(uid: str, model: str, tier: str, usage: dict, description: str, task_role: str = None):
     """The Secret Business Sauce: High-Margin Credit Engine."""
-    prices = API_PRICES.get(model, {"in": 0.1, "out": 0.4})
-    tokens_in = usage.get("prompt_tokens", 0)
-    tokens_out = usage.get("completion_tokens", 0)
+    user_cost_credits = 0.1 # Safety Floor
     
-    # Calculate Real API Cost in USD
-    real_cost_usd = (tokens_in * prices["in"] / 1_000_000) + (tokens_out * prices["out"] / 1_000_000)
-    
-    # Apply Margin
-    margin = TIER_MARGINS.get(tier, 5.0)
-    user_cost_credits = real_cost_usd * 100 * margin # 1 credit = ~0.01$ base
-    
-    # Safety Floor: Minimum 0.1 credits per request
-    user_cost_credits = max(round(user_cost_credits, 4), 0.1)
+    # Tier 1: Fixed cost from AGENT_MODELS if applicable
+    if task_role and task_role in AGENT_MODELS:
+        user_cost_credits = AGENT_MODELS[task_role].get("credits", 0.1)
+    else:
+        # Tier 2: Dynamic calculation based on API price + Margin
+        prices = API_PRICES.get(model, {"in": 0.1, "out": 0.4})
+        tokens_in = usage.get("prompt_tokens", 0)
+        tokens_out = usage.get("completion_tokens", 0)
+        
+        # Calculate Real API Cost in USD
+        real_cost_usd = (tokens_in * prices["in"] / 1_000_000) + (tokens_out * prices["out"] / 1_000_000)
+        
+        # Apply Margin
+        margin = TIER_MARGINS.get(tier, 5.0)
+        user_cost_credits = real_cost_usd * 100 * margin # 1 credit = ~0.01$ base
+        user_cost_credits = max(round(user_cost_credits, 4), 0.1)
     
     _check_credits(uid, user_cost_credits)
     _update_credits(uid, -user_cost_credits, f"{description} [{model}]")
+    
+    # Log to credit_transactions
+    try:
+        sb.table("credit_transactions").insert({
+            "user_id": uid,
+            "action_type": task_role or "llm_call",
+            "model_used": model,
+            "credits_deducted": user_cost_credits,
+            "status": "success",
+            "description": description
+        }).execute()
+    except Exception: pass
+
     return user_cost_credits
 
 # ============ AUTH ============
@@ -428,7 +451,7 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
         request_ultra = payload.ultra or is_ultra_plan
         
         # Step 4: Routing & Execution with Preference
-        res = await router_call(agent_role, sysm, full, sb=sb, ultra=request_ultra, pref=payload.preference)
+        res = await router_call(agent_role, sysm, full, sb=sb, thinking_mode=payload.preference if payload.preference in ["fast", "normal", "deep"] else "normal")
         reply = res["content"]
 
         # Step 5: High-Margin Credit Consumption
@@ -748,8 +771,30 @@ Return STRICT JSON ONLY (no prose, no markdown fences) with this exact shape:
 CODE_SYSTEM = """You are Jarvis, an autonomous senior full-stack engineer with full terminal access. Given a project plan and a target file path, output ONLY the complete file content (no markdown fences, no commentary). Code must be production-ready, complete, runnable, and specific to the project described. If a package needs to be installed, you can assume it will be available or specify it in terminal commands. Use real-world patterns, never generic boilerplate."""
 
 @api_router.get("/projects")
-async def list_projects(user=Depends(get_current_user)):
-    return sb.table("jarvis_projects").select("*").eq("user_id", user["id"]).order("updated_at", desc=True).execute().data
+async def list_projects(user_id: Optional[str] = None, user=Depends(get_current_user)):
+    target_uid = user_id if user_id and user.get("is_admin") else user["id"]
+    return sb.table("jarvis_projects").select("*").eq("user_id", target_uid).order("updated_at", desc=True).execute().data
+
+@api_router.get("/builder/status/{uid}")
+async def builder_status(uid: str):
+    """Get the status of the most recent build for a user."""
+    res = sb.table("jarvis_projects").select("*").eq("user_id", uid).order("updated_at", desc=True).limit(1).execute()
+    if not res.data:
+        return {"error": "No projects found"}
+    proj = res.data[0]
+    
+    state = sb.table("jarvis_project_state").select("*").eq("project_id", proj["id"]).limit(1).execute().data
+    if not state:
+        return {"project": proj, "step": "0/0", "description": "Initializing..."}
+    
+    done = len(state[0].get("completed_steps", []))
+    total = done + len(state[0].get("pending_steps", []))
+    
+    return {
+        "project": proj,
+        "step": f"{done}/{total}",
+        "description": state[0].get("last_summary", "Working...")
+    }
 
 @api_router.post("/projects/plan")
 async def plan_project(payload: ProjectCreate, user=Depends(get_current_user)):
@@ -771,7 +816,7 @@ async def plan_project(payload: ProjectCreate, user=Depends(get_current_user)):
     # Prepend custom persona if exists
     final_sys = await _get_system_prompt(user["id"], "builder", PLAN_SYSTEM)
 
-    res = await router_call(model_role, final_sys, f"App description: {payload.description}\\n\\nReturn STRICT JSON ONLY.", sb=sb, ultra=payload.ultra)
+    res = await router_call(model_role, final_sys, f"App description: {payload.description}\\n\\nReturn STRICT JSON ONLY.", sb=sb, thinking_mode=payload.thinking_mode)
     raw = res["content"]
     
     # Consume credits for planning (High-Margin)
@@ -832,7 +877,7 @@ async def _shadow_worker_speculate(pid: str, path: str, content: str):
         if test_path == path: return
         
         sys_prompt = "You are a QA WORKER. Generate a fast unit test for this code. Output ONLY code."
-        res = await router_call("worker", sys_prompt, content[:2000], sb=sb, ultra=False, pref="speed")
+        res = await router_call("worker", sys_prompt, content[:2000], sb=sb, thinking_mode="fast")
         test_content = res["content"].strip()
         
         # Save test file quietly (Background Autonomy)
@@ -849,7 +894,7 @@ async def _shadow_worker_speculate(pid: str, path: str, content: str):
     except Exception: pass
 
 class BuildRequest(BaseModel):
-    ultra: bool = False
+    thinking_mode: str = "normal"
 
 @api_router.post("/projects/{pid}/build")
 async def build_project(pid: str, req: BuildRequest, user=Depends(get_current_user)):
@@ -875,8 +920,8 @@ async def build_project(pid: str, req: BuildRequest, user=Depends(get_current_us
             prompt = f"Project plan:\n{json.dumps(plan, indent=2)[:4000]}\n\nGenerate the COMPLETE content of file: {path}\nPurpose: {purpose}\nReturn ONLY the file content, no markdown fences."
             final_sys = await _get_system_prompt(user["id"], "builder", CODE_SYSTEM)
             
-            # Use ultra mode if requested
-            res = await router_call(agent_role if agent_role != "coder" else "coder", final_sys, prompt, sb=sb, ultra=req.ultra)
+            # Use thinking mode if requested
+            res = await router_call(agent_role if agent_role != "coder" else "coder", final_sys, prompt, sb=sb, thinking_mode=req.thinking_mode)
             content = res["content"].strip()
             
             # Credit consumption for this file (High-Margin)
@@ -927,6 +972,11 @@ async def build_project(pid: str, req: BuildRequest, user=Depends(get_current_us
     _update_credits(user["id"], -BUILD_FLAT_FEE, f"Project build base fee: {pid[:8]}")
     total_credit_cost += BUILD_FLAT_FEE
 
+    # Notify user via Telegram
+    try:
+        await send_telegram_notification(user["id"], f"✅ *Build terminé !* Ton app *{proj['name']}* est prête.\nRepo GitHub : {proj.get('github_url', 'N/A')}")
+    except Exception: pass
+
     # Update project state
     try:
         sb.table("jarvis_project_state").upsert({
@@ -966,16 +1016,51 @@ async def build_project(pid: str, req: BuildRequest, user=Depends(get_current_us
             "last_summary": f"Generated {len(generated)} files and passed QA. Ready for review.",
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }).execute()
+        
+        # Notify user via Telegram
+        msg = f"✅ *Build terminé !* Ton app *{proj.get('name', 'Jarvis App')}* est prête.\nRepo GitHub : {proj.get('github_url', 'Indisponible')}"
+        asyncio.create_task(send_telegram_notification(user["id"], msg, sb))
     except Exception: pass
 
     return {"ok": True, "generated": generated}
 
 @api_router.get("/projects/{pid}")
 async def get_project(pid: str, user=Depends(get_current_user)):
-    proj = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).limit(1).execute().data
-    if not proj: raise HTTPException(404, "Not found")
-    files = sb.table("jarvis_project_files").select("*").eq("project_id", pid).order("path").execute().data
-    return {"project": proj[0], "files": files}
+    try:
+        # Simple UUID validation check
+        uuid.UUID(pid)
+        res = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).limit(1).execute()
+        if not res.data:
+            raise HTTPException(404, "Project not found")
+        proj = res.data[0]
+        files = sb.table("jarvis_project_files").select("*").eq("project_id", pid).order("path").execute().data
+        return {"project": proj, "files": files}
+    except ValueError:
+        raise HTTPException(400, "Invalid Project ID format")
+    except Exception as e:
+        log.error(f"Error in get_project: {e}")
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(500, f"Internal Server Error: {str(e)}")
+
+@api_router.patch("/projects/{pid}")
+async def update_project(pid: str, req: Dict[str, Any], user=Depends(get_current_user)):
+    try:
+        # Check if project exists and belongs to user
+        res = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).limit(1).execute()
+        if not res.data:
+            raise HTTPException(404, "Project not found")
+        
+        update_data = {}
+        if "name" in req: update_data["name"] = req["name"]
+        if "description" in req: update_data["description"] = req["description"]
+        
+        if update_data:
+            sb.table("jarvis_projects").update(update_data).eq("id", pid).execute()
+            
+        return {"ok": True}
+    except Exception as e:
+        log.error(f"Error updating project {pid}: {e}")
+        raise HTTPException(500, str(e))
 
 @api_router.post("/projects/{pid}/ghost-edit")
 async def ghost_edit(pid: str, req: GhostEditRequest, user=Depends(get_current_user)):
@@ -990,7 +1075,7 @@ async def ghost_edit(pid: str, req: GhostEditRequest, user=Depends(get_current_u
     
     t0 = time.time()
     # route_model will pick gemini-1.5-flash for 'worker'
-    res = await router_call("worker", sys_prompt, user_prompt, sb=sb, ultra=False, pref="speed")
+    res = await router_call("worker", sys_prompt, user_prompt, sb=sb, thinking_mode="fast")
     patched_snippet = res["content"].strip()
     
     # Consume credits (WORKER has highest margin)
@@ -1326,7 +1411,7 @@ async def _run_job(job_id: str):
 
         # Execute based on agent type
         if agent == "planner":
-            res = await router_call(role, sysm, f"Plan: {proj.get('description','')}", sb=sb, ultra=is_ultra)
+            res = await router_call(role, sysm, f"Plan: {proj.get('description','')}", sb=sb, thinking_mode="deep" if is_ultra else "normal")
             sb.table("jarvis_project_state").upsert({"project_id": j["project_id"], "current_phase": "coding",
                                                      "last_summary": res["content"][:500],
                                                      "updated_at": datetime.now(timezone.utc).isoformat()}).execute()
@@ -1335,7 +1420,7 @@ async def _run_job(job_id: str):
             if agent == "bug_hunter" and not j["payload"].get("path"):
                 path = "src/App.jsx" # default fix target
             purpose = j["payload"].get("purpose", "")
-            res = await router_call(role, sysm, f"File: {path}\nPurpose: {purpose}\nInstruction: {j['payload'].get('instruction','')}\nProject: {proj.get('description','')}", sb=sb, ultra=is_ultra or agent == "bug_hunter")
+            res = await router_call(role, sysm, f"File: {path}\nPurpose: {purpose}\nInstruction: {j['payload'].get('instruction','')}\nProject: {proj.get('description','')}", sb=sb, thinking_mode="deep" if (is_ultra or agent == "bug_hunter") else "normal")
             content = res["content"].strip()
             if content.startswith("```"):
                 lines = content.split("\n"); content = "\n".join(lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:])
@@ -1346,7 +1431,7 @@ async def _run_job(job_id: str):
                 sb.table("jarvis_project_files").insert({"id": str(uuid.uuid4()), "project_id": j["project_id"], "path": path, "content": content, "language": "plaintext"}).execute()
             res["actions"] = [{"action": "processed", "path": path}]
         else:
-            res = await router_call(role, sysm, j["payload"].get("instruction", f"Task for {agent}"), sb=sb, ultra=is_ultra)
+            res = await router_call(role, sysm, j["payload"].get("instruction", f"Task for {agent}"), sb=sb, thinking_mode="deep" if is_ultra else "normal")
 
         # Consume credits (High-Margin)
         cost = _consume_credits_v2(
@@ -1512,6 +1597,51 @@ async def telegram_webhook(payload: dict):
                 await _tg_send(chat_id, "You're not linked yet. Open jarvisagent.app → Plugins → Telegram and send me the code.")
             return {"ok": True}
 
+        # --- INTENT DETECTION ---
+        text_l = text.lower()
+        
+        # 1. CREATE BUILD
+        if any(x in text_l for x in ["crée", "build", "développe", "fais moi une appli", "lance un build", "code moi"]):
+            desc = text
+            for x in ["crée", "build", "développe", "fais moi une appli", "lance un build", "code moi"]:
+                desc = desc.replace(x, "").replace(x.capitalize(), "")
+            desc = desc.strip()
+            
+            async def _tg_build():
+                try:
+                    payload = ProjectCreate(description=desc, thinking_mode="normal")
+                    proj = await plan_project(payload, user={"id": uid})
+                    await _tg_send(chat_id, f"🚀 C'est parti ! Je lance le build de *{proj.get('name', 'ton projet')}*. Je te préviens dès que c'est terminé.")
+                    await asyncio.sleep(2)
+                    await build_project(proj["id"], BuildRequest(thinking_mode="normal"), user={"id": uid})
+                except Exception as e:
+                    await _tg_send(chat_id, f"❌ Erreur lors du lancement : {str(e)}")
+            
+            asyncio.create_task(_tg_build())
+            return {"ok": True}
+
+        # 2. STATUS
+        if any(x in text_l for x in ["où en est", "c'est prêt", "avancement", "statut"]):
+            status = await builder_status(uid)
+            if "error" in status:
+                await _tg_send(chat_id, "Tu n'as pas de projet en cours.")
+            else:
+                msg = f"🔄 Ton build *{status['project']['name']}* est en cours — Étape {status['step']} : {status['description']}"
+                await _tg_send(chat_id, msg)
+            return {"ok": True}
+
+        # 3. LIST PROJECTS
+        if any(x in text_l for x in ["mes projets", "liste", "historique"]):
+            projs = await list_projects(user_id=uid, user={"id": uid, "is_admin": True})
+            if not projs:
+                await _tg_send(chat_id, "Tu n'as pas encore créé de projets.")
+            else:
+                msg = "*Mes 5 derniers projets :*\n" + "\n".join([f"• {p['name']} ({p['status']})" for p in projs[:5]])
+                await _tg_send(chat_id, msg)
+            return {"ok": True}
+
+        # ... rest of the assistant logic ...
+
         # --- GLOBAL CREDIT CHECK FOR TELEGRAM ---
         try:
             _check_credits(uid, required=0.1) # Small check to see if > 0
@@ -1522,7 +1652,7 @@ async def telegram_webhook(payload: dict):
             raise e
 
         # ... rest of the assistant logic ...
-
+        
         # Reuse or create a Telegram chat session
         existing_sessions = sb.table("jarvis_chat_sessions").select("*").eq("user_id", uid).eq("assistant_id", "jarvis").order("updated_at", desc=True).limit(1).execute()
         if existing_sessions.data:
@@ -1950,7 +2080,7 @@ async def startup_event():
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=["https://jarvisagent.app", "http://localhost:3000", "http://localhost:8000", "http://localhost:8001"],
     allow_methods=["*"],
     allow_headers=["*"]
 )
@@ -2004,7 +2134,7 @@ Format:
 }
 Priority rules: 1=Immediate, 2=Wait for 1, 3=Background (app_build, deep_research)."""
     
-    res = await router_call("worker", sys_prompt, req.message, sb=sb, ultra=False, pref="speed")
+    res = await router_call("worker", sys_prompt, req.message, sb=sb, thinking_mode="fast")
     try:
         raw = res["content"].strip()
         if raw.startswith("```"):
@@ -2087,8 +2217,8 @@ async def chief_execute(req: ChiefExecuteRequest, user=Depends(get_current_user)
                     await asyncio.sleep(2) 
                     
                     # Deduct credit AT THE END of mission
-                    _update_credits(user["id"], -cost, f"Mission: {m['type']}")
-                    sb.table("credit_transactions").insert({"user_id": user["id"], "mission_type": m["type"], "amount": cost, "mission_id": mid, "status": "completed"}).execute()
+                    cost = _consume_credits_v2(user["id"], "claude-3-5-sonnet-latest", "ELITE_LOGIC", {}, f"Mission: {m['type']}", task_role=m["type"])
+                    
                     
                     yield f"data: {json.dumps({'mission_id': mid, 'status': 'done', 'preview': f'Succès de la mission {m['type']}'})}\\n\\n"
                     yield f"data: {json.dumps({'type': 'credits_deducted', 'amount': cost, 'new_balance': _user_credits(user['id'])})}\\n\\n"
@@ -2106,6 +2236,10 @@ async def chief_execute(req: ChiefExecuteRequest, user=Depends(get_current_user)
         # Final Report Generation via ELITE_LOGIC
         summary = "Toutes les missions ont été exécutées avec succès."
         yield f"data: {json.dumps({'type': 'final_report', 'report': {'completed': completed, 'summary': summary}})}\\n\\n"
+        
+        # Notify via Telegram
+        msg = f"📋 *Chief of Staff : Mission terminée !*\n{len(completed)} tâches exécutées avec succès."
+        asyncio.create_task(send_telegram_notification(user["id"], msg, sb))
     
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 

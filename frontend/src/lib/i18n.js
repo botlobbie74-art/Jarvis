@@ -198,7 +198,7 @@ const translations = {
     feat_workspace_title: "L'Intégrateur Workspace",
     feat_workspace_desc: "Votre écosystème, sous stéroïdes. Jarvis orchestre vos outils. Il synchronise vos données entre Google, GitHub et Telegram sans onglet à ouvrir.",
     feat_web_title: "Web Intelligence",
-    feat_web_desc: "Extraction en temps réel et recherche profonde via Perplexity API.",
+    feat_web_desc: "Extraction en temps réel et recherche profonde via Tavily API.",
     feat_background_title: "Tâches en arrière-plan",
     feat_background_desc: "L'IA qui n'a pas besoin de vous. Pendant que vous dormez, Jarvis analyse vos flux, prépare vos dossiers et nettoie votre backlog.",
     
@@ -223,6 +223,11 @@ const translations = {
     how_3_desc: "Le code est généré fichier par fichier par des agents spécialisés, avec des standards de production.",
     how_4_title: "Déployer",
     how_4_desc: "Un clic suffit pour envoyer tout le projet vers un nouveau dépôt GitHub, prêt pour la production.",
+
+    // Builder
+    build_hero: "",
+    build_start: "Lancer le build",
+    build_placeholder: "Décris l'application que tu veux créer...",
 
     // Pricing Section
     pricing_title: "Simple, juste, sans surprise",

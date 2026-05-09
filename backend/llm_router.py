@@ -137,18 +137,30 @@ def reorder_context(system: str, user: str) -> Tuple[str, str]:
 
 # --- 4. MODEL ROUTER AI ---
 
-def route_model(analysis: Dict[str, Any], task_role: str = "coder", ultra: bool = False, pref: str = "balanced") -> str:
+# --- 4. MODEL ROUTER AI ---
+
+THINKING_PROMPTS = {
+    "fast": "user_speed_preference: fast. Be concise and direct.",
+    "normal": "user_speed_preference: balanced.",
+    "deep": "user_speed_preference: deep. Think through edge cases, architecture decisions and potential bugs carefully."
+}
+
+def route_model(analysis: Dict[str, Any], task_role: str = "coder", thinking_mode: str = "normal") -> str:
     """The Core Business Logic: Optimized for Quality/Cost/Speed based on Directive 1."""
+    
+    # Specific overrides for Chief of Staff if task_role matches AGENT_MODELS keys
+    # (This will be handled by the caller who passes the task_role)
+    
     # Strict Tier Assignment
-    if task_role in ["ceo", "planner", "architect"]:
-        # Tier GOD is ONLY for step 1 of the Builder (planning).
+    if task_role in ["ceo", "planner", "architect", "builder_planning"]:
+        # Tier GOD is for planning.
         return "claude-3-opus-20240229"
         
     if task_role in ["ux", "frontend", "visual"]:
         # ELITE (Visual)
         return "gpt-4o"
         
-    if task_role in ["backend", "refactor", "security", "infra", "logic"]:
+    if task_role in ["backend", "refactor", "security", "infra", "logic", "youtube_scripts"]:
         # ELITE (Sonnet)
         return "claude-3-5-sonnet-latest"
         
@@ -156,7 +168,7 @@ def route_model(analysis: Dict[str, Any], task_role: str = "coder", ultra: bool 
         # PRO
         return "gpt-4o-mini"
         
-    if task_role in ["qa_test", "parser", "formatter", "worker"]:
+    if task_role in ["qa_test", "parser", "formatter", "worker", "mission_parse"]:
         # WORKER
         return "gemini-1.5-flash"
         
@@ -169,20 +181,24 @@ def route_model(analysis: Dict[str, Any], task_role: str = "coder", ultra: bool 
 
 # --- 5. EXECUTION ENGINE ---
 
-async def llm_call(role: str, system: str, user: str, sb=None, ultra: bool = False, manual_model: str = None, pref: str = "balanced") -> dict:
+async def llm_call(role: str, system: str, user: str, sb=None, thinking_mode: str = "normal", manual_model: str = None) -> dict:
     t0 = time.time()
+    
+    # Inject thinking mode instruction
+    thinking_instruction = THINKING_PROMPTS.get(thinking_mode, THINKING_PROMPTS["normal"])
+    full_system = f"{system}\n\n[INSTRUCTION]\n{thinking_instruction}"
     
     # Step 1: Analysis (unless manual)
     if manual_model:
         model_name = manual_model
         analysis = {"complexity": 100, "reason": "Manual Override"}
     else:
-        analysis = await analyze_task(system, user)
-        model_name = route_model(analysis, role, ultra, pref)
+        analysis = await analyze_task(full_system, user)
+        model_name = route_model(analysis, role, thinking_mode)
 
     # Step 2: Context Management
     # Apply Pruning first
-    sys_pruned, user_pruned = prune_context(system, user, analysis.get("complexity", 50))
+    sys_pruned, user_pruned = prune_context(full_system, user, analysis.get("complexity", 50))
     # Apply Reordering for better reasoning in ELITE/GOD tiers
     sys_final, user_final = reorder_context(sys_pruned, user_pruned)
 
@@ -241,47 +257,6 @@ async def call_gemini_v2(p, model, system, user):
     if r.status_code >= 400: raise RuntimeError(f"gemini {r.status_code}: {r.text[:200]}")
     data = r.json()
     content = data["candidates"][0]["content"]["parts"][0]["text"]
-    usage = data.get("usageMetadata", {})
-    return content, {"prompt_tokens": usage.get("promptTokenCount", 0), "completion_tokens": usage.get("candidatesTokenCount", 0), "total_tokens": usage.get("totalTokenCount", 0)}
-
-async def call_anthropic_v2(p, model, system, user):
-    headers = {"x-api-key": os.environ[p["key_env"]], "anthropic-version": "2023-06-01", "content-type": "application/json"}
-    payload = {"model": model, "system": system, "messages": [{"role": "user", "content": user}], "max_tokens": 4096, "temperature": 0.4}
-    async with httpx.AsyncClient(timeout=60) as cli:
-        r = await cli.post(p["endpoint"], headers=headers, json=payload)
-    if r.status_code >= 400: raise RuntimeError(f"anthropic {r.status_code}: {r.text[:200]}")
-    data = r.json()
-    return data["content"][0]["text"], {"prompt_tokens": data["usage"]["input_tokens"], "completion_tokens": data["usage"]["output_tokens"], "total_tokens": data["usage"]["input_tokens"] + data["usage"]["output_tokens"]}
-
-async def call_openai_v2(p, model, system, user):
-    headers = {"Authorization": f"Bearer {os.environ[p['key_env']]}", "Content-Type": "application/json"}
-    payload = {"model": model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0.4}
-    async with httpx.AsyncClient(timeout=60) as cli:
-        r = await cli.post(p["endpoint"], headers=headers, json=payload)
-    if r.status_code >= 400: raise RuntimeError(f"openai {r.status_code}: {r.text[:200]}")
-    data = r.json()
-    return data["choices"][0]["message"]["content"], {"prompt_tokens": data["usage"]["prompt_tokens"], "completion_tokens": data["usage"]["completion_tokens"], "total_tokens": data["usage"]["total_tokens"]}
-
-async def call_openai_compat_v2(p, model, system, user):
-    headers = {"Authorization": f"Bearer {os.environ.get(p['key_env'], 'unused')}", "Content-Type": "application/json"}
-    payload = {"model": model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0.4}
-    async with httpx.AsyncClient(timeout=60) as cli:
-        r = await cli.post(p["endpoint"], headers=headers, json=payload)
-    if r.status_code >= 400: raise RuntimeError(f"compat {r.status_code}: {r.text[:200]}")
-    data = r.json()
-    return data["choices"][0]["message"]["content"], {"prompt_tokens": data["usage"]["prompt_tokens"], "completion_tokens": data["usage"]["completion_tokens"], "total_tokens": data["usage"]["total_tokens"]}
-
-# --- API ADAPTERS (V2) ---
-
-async def call_gemini_v2(p, model, system, user):
-    key = os.environ[p["key_env"]]
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
-    payload = {"contents": [{"role": "user", "parts": [{"text": f"{system}\n\n{user}"}]}], "generationConfig": {"temperature": 0.4}}
-    async with httpx.AsyncClient(timeout=60) as cli:
-        r = await cli.post(url, json=payload)
-    if r.status_code >= 400: raise RuntimeError(f"gemini {r.status_code}: {r.text[:200]}")
-    data = r.json()
-    content = data["candidates"][0]["content"]["parts"][0]["text"]
     usage = data.get("usageMetadata", {"totalTokenCount": len(content)//4 + len(system+user)//4})
     return content, {"prompt_tokens": usage.get("promptTokenCount", 0), "completion_tokens": usage.get("candidatesTokenCount", 0), "total_tokens": usage.get("totalTokenCount", 0)}
 
@@ -311,3 +286,4 @@ async def call_openai_compat_v2(p, model, system, user):
     if r.status_code >= 400: raise RuntimeError(f"compat {r.status_code}: {r.text[:200]}")
     data = r.json()
     return data["choices"][0]["message"]["content"], {"prompt_tokens": data["usage"]["prompt_tokens"], "completion_tokens": data["usage"]["completion_tokens"], "total_tokens": data["usage"]["total_tokens"]}
+

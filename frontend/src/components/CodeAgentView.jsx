@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import api from '../lib/api';
-import { Loader2, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Rocket, Paperclip, ArrowUp, Sun, Moon, X as XIcon, Download, Check, ChevronDown, ChevronUp, RefreshCw, ExternalLink } from 'lucide-react';
+import { Loader2, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Rocket, Paperclip, ArrowUp, Sun, Moon, X as XIcon, Download, Check, ChevronDown, ChevronUp, RefreshCw, ExternalLink, Pencil } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -44,11 +44,14 @@ export default function CodeAgentView() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [showRepoMenu, setShowRepoMenu] = useState(false);
   const [autoBuild, setAutoBuild] = useState(true);
-  const [ultraMode, setUltraMode] = useState(false);
   const [view, setView] = useState('preview'); // 'preview' or 'code'
   const [deployModal, setDeployModal] = useState(false);
   const [deploySubdomain, setDeploySubdomain] = useState('');
   const [deployResult, setDeployResult] = useState(null);
+  const [thinkingMode, setThinkingMode] = useState(localStorage.getItem('jarvis_thinking_mode') || 'normal');
+  const [editingProject, setEditingProject] = useState(null); // { id, name, description }
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
   const { toast } = useToast();
@@ -70,6 +73,10 @@ export default function CodeAgentView() {
     const prompt = sessionStorage.getItem('jarvis_builder_prompt');
     if (prompt) { sessionStorage.removeItem('jarvis_builder_prompt'); setDescription(prompt); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    localStorage.setItem('jarvis_thinking_mode', thinkingMode);
+  }, [thinkingMode]);
 
   const openProject = async (id) => {
     try {
@@ -152,7 +159,7 @@ export default function CodeAgentView() {
     try {
       let fullDesc = description;
       if (attachedFile) fullDesc += `\n\n[Attached file: ${attachedFile.name}]`;
-      const { data } = await api.post('/projects/plan', { description: fullDesc, ultra: ultraMode });
+      const { data } = await api.post('/projects/plan', { description: fullDesc, thinking_mode: thinkingMode });
       setProjects((p) => [data, ...p]);
       setDescription('');
       setAttachedFile(null);
@@ -176,7 +183,7 @@ export default function CodeAgentView() {
     setBuilding(true);
     setPreviewSrc('');
     try {
-      await api.post(`/projects/${active.project.id}/build`, { ultra: ultraMode });
+      await api.post(`/projects/${active.project.id}/build`, { thinking_mode: thinkingMode });
       await openProject(active.project.id);
       refreshUser();
       toast({ title: 'Build complete' });
@@ -210,6 +217,21 @@ export default function CodeAgentView() {
     window.location.href = `${api.defaults.baseURL}/projects/${active.project.id}/download-zip?token=${localStorage.getItem('jarvis_token')}`;
   };
 
+  const saveEdit = async () => {
+    if (!editingProject) return;
+    try {
+      await api.patch(`/projects/${editingProject.id}`, { name: editTitle, description: editDesc });
+      toast({ title: 'Project updated' });
+      loadProjects();
+      if (active?.project?.id === editingProject.id) {
+        setActive(prev => ({ ...prev, project: { ...prev.project, name: editTitle, description: editDesc } }));
+      }
+      setEditingProject(null);
+    } catch (e) {
+      toast({ title: 'Update failed', variant: 'destructive' });
+    }
+  };
+
   // ============ HOME ============
   if (!active) {
     return (
@@ -221,10 +243,11 @@ export default function CodeAgentView() {
           </button>
         </div>
         <div className="relative z-10 max-w-4xl mx-auto px-6 pt-32 pb-10">
-          <h1 className={`text-center font-[900] tracking-tighter ${dark ? 'text-white' : 'text-slate-900'}`} style={{ fontSize: 'clamp(44px, 8vw, 96px)', lineHeight: 0.9 }}>
-            {t('build_hero').split(' ')[0]}<br />
-            <span className="text-[#22a3ff]">{t('build_hero').split(' ').slice(1).join(' ')}</span>
-          </h1>
+          <div className="text-center mb-12">
+            <h1 className={`text-[40px] font-[900] tracking-tighter mb-4 ${dark ? 'text-white' : 'text-slate-900'}`}>
+              {t('build_hero')}
+            </h1>
+          </div>
           <div className={`mt-16 rounded-3xl border shadow-2xl transition-all ${dark ? 'bg-[#0a0a0c] border-white/10' : 'bg-white border-slate-200'}`}>
             {attachedFile && (
               <div className="flex items-center gap-2 px-6 pt-5 pb-0">
@@ -270,15 +293,25 @@ export default function CodeAgentView() {
                     <span className={`text-[12px] font-medium ${dark ? 'text-white/60' : 'text-slate-500'}`}>Auto-Build</span>
                   </label>
                   <div className={`w-px h-4 ${dark ? 'bg-white/10' : 'bg-slate-200'}`} />
-                  <button onClick={() => setUltraMode(!ultraMode)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all border ${
-                      ultraMode 
-                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]' 
-                        : dark ? 'bg-white/5 border-white/10 text-white/30' : 'bg-slate-50 border-slate-200 text-slate-400'
-                    }`}>
-                    <Sparkles className={`w-3.5 h-3.5 ${ultraMode ? 'animate-pulse' : ''}`} />
-                    <span className="text-[10px] font-bold">ULTRA MODE</span>
-                  </button>
+                  <div className="flex items-center gap-1.5 p-1">
+                    {[
+                      { id: 'fast', label: '⚡ Rapide' },
+                      { id: 'normal', label: '◎ Normal' },
+                      { id: 'deep', label: '🧠 Réflexion' }
+                    ].map(m => (
+                      <button 
+                        key={m.id}
+                        onClick={() => setThinkingMode(m.id)}
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border ${
+                          thinkingMode === m.id 
+                            ? 'bg-[#00d4ff] text-black border-[#00d4ff] shadow-lg shadow-cyan-400/20' 
+                            : 'bg-transparent text-slate-500 border-slate-300 dark:border-white/10 dark:text-white/30 hover:text-white'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <button onClick={createPlan} disabled={creating || !description.trim() || (isFree && (user?.credits || 0) <= 0)}
                   className={`h-11 px-6 rounded-full flex items-center gap-2 transition-colors disabled:opacity-40 font-semibold text-[14px] ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
@@ -310,10 +343,11 @@ export default function CodeAgentView() {
                         <div className="flex items-center gap-2">
                           <div className={`font-semibold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{p.name}</div>
                           <button onClick={() => {
-                            const n = prompt(t('dashboard_rename'), p.name);
-                            if (n) api.put(`/projects/${p.id}`, { name: n }).then(() => loadProjects());
+                            setEditingProject(p);
+                            setEditTitle(p.name);
+                            setEditDesc(p.description || '');
                           }} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded transition-opacity">
-                            <Sparkles className="w-3 h-3 text-cyan-400" /> {/* Pencil icon replacement for now if lucide Pencil missing, but I have Hammer */}
+                            <Pencil className="w-3.5 h-3.5 text-cyan-400" />
                           </button>
                         </div>
                         <div className={`text-[11px] truncate opacity-40 ${dark ? 'text-white' : 'text-slate-900'}`}>{p.description || t('dashboard_desc')}</div>
@@ -495,13 +529,13 @@ export default function CodeAgentView() {
                             <div className={`text-[10px] font-bold uppercase tracking-widest ${colors.text}`}>{colors.label}</div>
                             <div className={`text-[12px] font-semibold ${dark ? 'text-white/80' : 'text-slate-700'}`}>
                               {currentGroup.type} {currentGroup.paths.length} file{currentGroup.paths.length > 1 ? 's' : ''}
-                              {j.result?.model && <span className="ml-2 opacity-30 font-mono text-[10px]">({j.result.model}) {j.result.tier && `[${j.result.tier}]`}</span>}
+                              {currentGroup.model && <span className="ml-2 opacity-30 font-mono text-[10px]">({currentGroup.model}) {currentGroup.tier && `[${currentGroup.tier}]`}</span>}
                             </div>
                           </div>
                           <ChevronDown className="w-3 h-3 opacity-20 group-open:rotate-180 transition-transform ml-1" />
                           <div className="ml-auto text-right">
                             <div className={`text-[10px] font-mono opacity-20`}>{new Date(currentGroup.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
-                            {j.result?.cost && <div className="text-[9px] text-amber-500 font-bold">-{j.result.cost.toFixed(2)} cred</div>}
+                            {currentGroup.cost && <div className="text-[9px] text-amber-500 font-bold">-{currentGroup.cost.toFixed(2)} cred</div>}
                           </div>
                         </div>
                       </summary>
@@ -530,7 +564,7 @@ export default function CodeAgentView() {
                       currentGroup.paths.push(...paths);
                     } else {
                       flushGroup();
-                      currentGroup = { id: j.id, role, type: actionType, paths, time: j.finished_at };
+                      currentGroup = { id: j.id, role, type: actionType, paths, time: j.finished_at, model: j.result?.model, tier: j.result?.tier, cost: j.result?.cost };
                     }
                   } else {
                     flushGroup();
@@ -741,6 +775,38 @@ export default function CodeAgentView() {
                 {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
                 {t('dashboard_confirm')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+      {/* Edit Project Modal */}
+      {editingProject && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+          <div className={`w-full max-w-md rounded-3xl shadow-2xl border p-8 ${dark ? 'bg-[#0a0a0c] border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+            <h3 className="text-[18px] font-bold mb-6">Modifier le projet</h3>
+            <div className="space-y-4 mb-8">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest opacity-40 mb-2">Titre</label>
+                <input 
+                  value={editTitle} 
+                  onChange={e => setEditTitle(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'} outline-none focus:ring-2 focus:ring-cyan-500/50`}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest opacity-40 mb-2">Description</label>
+                <textarea 
+                  value={editDesc}
+                  onChange={e => setEditDesc(e.target.value)}
+                  rows={3}
+                  className={`w-full px-4 py-3 rounded-xl border ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'} outline-none focus:ring-2 focus:ring-cyan-500/50 resize-none`}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setEditingProject(null)} className={`flex-1 h-12 rounded-xl font-bold text-[14px] ${dark ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}>Annuler</button>
+              <button onClick={saveEdit} className="flex-1 h-12 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-[14px]">Sauvegarder</button>
             </div>
           </div>
         </div>
