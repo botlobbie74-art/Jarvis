@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, File, UploadFile
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, File, UploadFile, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -1369,10 +1369,8 @@ async def portal(user=Depends(get_current_user)):
     s = stripe.billing_portal.Session.create(customer=sub.data[0]["stripe_customer_id"], return_url=f"{APP_PUBLIC_URL}/app")
     return {"url": s.url}
 
-from fastapi import Request
-
 @api_router.post("/billing/webhook")
-async def webhook(request: Request):
+async def stripe_webhook(request: Request):
     if not STRIPE_WEBHOOK_SECRET: return {"ok": True, "skipped": True}
     payload_b = await request.body()
     sig = request.headers.get("stripe-signature", "")
@@ -1608,7 +1606,8 @@ app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 @api_router.post("/voice/transcribe")
 async def voice_transcribe(audio: UploadFile = File(...), user=Depends(get_current_user)):
-    if not GROQ_API_KEY: raise HTTPException(400, "GROQ_API_KEY not set")
+    g_key = os.environ.get("GROQ_API_KEY")
+    if not g_key: raise HTTPException(400, "GROQ_API_KEY not set")
     try:
         # Save temp file
         import tempfile
@@ -1620,7 +1619,7 @@ async def voice_transcribe(audio: UploadFile = File(...), user=Depends(get_curre
             with open(tmp_path, "rb") as f:
                 res = await cli.post(
                     "https://api.groq.com/openai/v1/audio/transcriptions",
-                    headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+                    headers={"Authorization": f"Bearer {g_key}"},
                     files={"file": (audio.filename, f), "model": (None, "distil-whisper-large-v3-en")}
                 )
         import os

@@ -11,29 +11,32 @@ export const AuthProvider = ({ children }) => {
   // On mount: restore session from local token OR handle Supabase OAuth callback
   useEffect(() => {
     const init = async () => {
-      // Check if we're returning from a Supabase OAuth callback
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        try {
-          const { data } = await api.post('/auth/supabase-exchange', {
-            access_token: session.access_token,
-            email: session.user?.email,
-            name: session.user?.user_metadata?.full_name || session.user?.user_metadata?.name || session.user?.email?.split('@')[0],
-          });
-          localStorage.setItem('wingman_token', data.access_token);
-          setUser(data.user);
-          setLoading(false);
-          return;
-        } catch (_) {}
-      }
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          try {
+            const { data } = await api.post('/auth/supabase-exchange', {
+              access_token: session.access_token,
+              email: session.user?.email,
+              name: session.user?.user_metadata?.full_name || session.user?.user_metadata?.name || session.user?.email?.split('@')[0],
+            });
+            localStorage.setItem('wingman_token', data.access_token);
+            setUser(data.user);
+            setLoading(false);
+            return;
+          } catch (_) {}
+        }
 
-      // Fallback: standard JWT token
-      const token = localStorage.getItem('wingman_token');
-      if (!token) { setLoading(false); return; }
-      api.get('/auth/me')
-        .then((r) => setUser(r.data))
-        .catch(() => localStorage.removeItem('wingman_token'))
-        .finally(() => setLoading(false));
+        const token = localStorage.getItem('wingman_token');
+        if (!token) { setLoading(false); return; }
+        await api.get('/auth/me')
+          .then((r) => setUser(r.data))
+          .catch(() => localStorage.removeItem('wingman_token'))
+          .finally(() => setLoading(false));
+      } catch (e) {
+        console.error("Auth init failed", e);
+        setLoading(false);
+      }
     };
     init();
 
