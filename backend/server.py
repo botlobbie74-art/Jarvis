@@ -178,9 +178,16 @@ async def login(payload: UserLogin):
 async def me(user=Depends(get_current_user)):
     plan_data = _user_plan(user["id"])
     return UserOut(
-        id=user["id"], email=user["email"], name=user["name"], created_at=user["created_at"],
-        credits=_user_credits(user["id"]), plan=plan_data.get("plan", "free")
+        id=user["id"], email=user["email"], name=user.get("name") or "", 
+        credits=user.get("credits", 0.0), plan=plan_data.get("plan", "free"),
+        created_at=user["created_at"]
     )
+
+@api_router.delete("/auth/delete-account")
+async def delete_account(user=Depends(get_current_user)):
+    # Cascades will handle chats, projects, etc.
+    sb.table("jarvis_users").delete().eq("id", user["id"]).execute()
+    return {"ok": True}
 
 # ============ SUPABASE OAUTH EXCHANGE ============
 class SupabaseExchangeIn(BaseModel):
@@ -228,7 +235,16 @@ ASSISTANT_PERSONAS = {
     "alfred": "You are Alfred, an Executive assistant AI. Manage calendars, draft emails. Polite, organized, meticulous.",
     "venus": "You are Venus, a Content marketer AI. Write posts, plan content. Creative, on-brand, engaging.",
     "donna": "You are Donna, a Personal assistant AI. Sort the day, handle to-dos. Warm, efficient, proactive.",
+    "builder": "You are the Jarvis App Builder. You architect and write production-ready code.",
 }
+
+async def _get_system_prompt(uid: str, assistant_id: str, default_core: str) -> str:
+    try:
+        custom = sb.table("jarvis_personas").select("*").eq("user_id", uid).eq("assistant_id", assistant_id).execute()
+        if custom.data and custom.data[0].get("system_prompt"):
+            return custom.data[0]["system_prompt"] + "\n\n" + default_core
+    except Exception: pass
+    return default_core
 
 @api_router.get("/chat/sessions")
 async def list_sessions(user=Depends(get_current_user)):
@@ -328,12 +344,7 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
     sb.table("jarvis_chat_messages").insert(user_msg).execute()
 
     # Build system prompt with project context
-    sysm = BUILDER_AWARE_SYSTEM
-    try:
-        custom = sb.table("jarvis_personas").select("*").eq("user_id", user["id"]).eq("assistant_id", "jarvis").execute()
-        if custom.data and custom.data[0].get("system_prompt"):
-            sysm = custom.data[0]["system_prompt"] + "\n\n" + BUILDER_AWARE_SYSTEM
-    except Exception: pass
+    sysm = await _get_system_prompt(user["id"], "jarvis", BUILDER_AWARE_SYSTEM)
 
     # Inject project context
     try:
@@ -645,7 +656,11 @@ async def list_projects(user=Depends(get_current_user)):
 async def plan_project(payload: ProjectCreate, user=Depends(get_current_user)):
     pid = str(uuid.uuid4())
     model_role = "planner" if not payload.ultra else "deep_research" # use stronger model for ultra
-    res = await router_call(model_role, PLAN_SYSTEM, f"App description: {payload.description}\n\nReturn STRICT JSON ONLY.", sb=sb)
+    
+    # Prepend custom persona if exists
+    final_sys = await _get_system_prompt(user["id"], "builder", PLAN_SYSTEM)
+
+    res = await router_call(model_role, final_sys, f"App description: {payload.description}\n\nReturn STRICT JSON ONLY.", sb=sb)
     raw = res["content"]
     raw_clean = raw.strip()
     if raw_clean.startswith("```"):
@@ -696,7 +711,8 @@ async def build_project(pid: str, req: BuildRequest, user=Depends(get_current_us
         agent_role = f.get("agent_type") or "coder"
         try:
             prompt = f"Project plan:\n{json.dumps(plan, indent=2)[:4000]}\n\nGenerate the COMPLETE content of file: {path}\nPurpose: {purpose}\nReturn ONLY the file content, no markdown fences."
-            res = await router_call(agent_role if agent_role != "coder" else "coder", CODE_SYSTEM, prompt, sb=sb)
+            final_sys = await _get_system_prompt(user["id"], "builder", CODE_SYSTEM)
+            res = await router_call(agent_role if agent_role != "coder" else "coder", final_sys, prompt, sb=sb)
             content = res["content"].strip()
             if content.startswith("```"):
                 lines = content.split("\n"); content = "\n".join(lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:])
@@ -802,7 +818,30 @@ async def update_file(pid: str, payload: FileUpdate, user=Depends(get_current_us
     return {"ok": True}
 
 @api_router.delete("/projects/{pid}")
-async def delete_project(pid: str, user=Depends(get_current_user)):
+async def delete_project(pid: str, github: bool = False, vercel: bool = False, user=Depends(get_current_user)):
+    proj = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).limit(1).execute().data
+    if not proj: raise HTTPException(404, "Not found")
+    proj = proj[0]
+
+    # External cleanup
+    if github and proj.get("github_repo"):
+        try:
+            # We need the user's GitHub token
+            gh_plugin = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("plugin_id", "github").execute().data
+            if gh_plugin:
+                token = gh_plugin[0]["metadata"].get("access_token")
+                repo = proj["github_repo"] # e.g. "user/repo"
+                async with httpx.AsyncClient() as cli:
+                    await cli.delete(f"https://api.github.com/repos/{repo}", 
+                                     headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
+                    log.info(f"Deleted GitHub repo: {repo}")
+        except Exception as e: log.error(f"GitHub delete failed: {e}")
+
+    if vercel and proj.get("preview_url"):
+        # Vercel deletion would require Vercel project ID or name
+        # For now we'll just log it or if we have a Vercel token integration
+        log.info(f"Vercel cleanup requested for {proj['preview_url']} - manual for now")
+
     sb.table("jarvis_projects").delete().eq("id", pid).eq("user_id", user["id"]).execute()
     return {"ok": True}
 
@@ -1161,12 +1200,23 @@ async def telegram_webhook(payload: dict):
                 log.info(f"Telegram /start with candidate: {candidate}")
             else:
                 await _tg_send(chat_id,
-                    "Hi! I'm Jarvis. To link your account, open jarvisagent.app → Plugins → Telegram, "
-                    "then send me the 6-character code shown there.")
+                    "👋 Hi! I'm Jarvis.\n\nTo link your account, open the app → Plugins → Telegram, "
+                    "then click 'Connect' or send me the 6-character code shown there.")
                 return {"ok": True}
         else:
-            # 2. Handle direct code entry
+            # 2. Handle direct code entry or random text
+            # If the user sends something that looks like a code, try it
             candidate = text.lstrip("/").upper()
+            if len(candidate) != 6 or not candidate.isalnum():
+                # Not a code, check if user is connected
+                res = sb.table("jarvis_plugins").select("*").eq("metadata->>telegram_chat_id", str(chat_id)).eq("status", "connected").execute()
+                if not res.data:
+                    await _tg_send(chat_id, "❌ I don't recognize you yet. Please send your 6-character link code from the app.")
+                    return {"ok": True}
+                # Else: pass to AI (handled elsewhere or here)
+                log.info(f"Telegram msg from {tg_username}: {text}")
+                return {"ok": True}
+
             log.info(f"Telegram message as candidate: {candidate}")
 
         # Link-code processing
@@ -1213,7 +1263,7 @@ async def telegram_webhook(payload: dict):
             sb.table("jarvis_plugins").delete().eq("user_id", uid).eq("plugin_id", "telegram_linking").execute()
 
             log.info(f"Successfully linked Telegram chat {chat_id} to user {uid}")
-            await _tg_send(chat_id, "✅ Linked! You can now chat with Jarvis here.")
+            await _tg_send(chat_id, "✅ Account successfully linked! You can now ask me to build apps or run tasks directly from here.")
             return {"ok": True}
 
         # 3. Normal chat path: find linked user
@@ -1649,19 +1699,14 @@ async def startup_event():
         except Exception as e:
             log.warning(f"Failed to set Telegram webhook: {e}")
 
-app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "https://jarvisagent.app",
-        "https://www.jarvisagent.app"
-    ],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"]
 )
+app.include_router(api_router)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 @api_router.post("/voice/transcribe")
 async def voice_transcribe(audio: UploadFile = File(...), user=Depends(get_current_user)):

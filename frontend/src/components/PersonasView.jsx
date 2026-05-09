@@ -113,12 +113,6 @@ export default function PersonasView() {
             className={`w-full h-10 px-3 rounded-lg border text-[14px] outline-none mb-4 ${dark ? 'bg-white/5 border-white/10 text-white focus:border-white/30' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`}
           />
 
-          {/* Default prompt preview */}
-          <details className="mb-3 group">
-            <summary className={`text-[12px] cursor-pointer hover:underline ${dark ? 'text-white/30' : 'text-slate-500'}`}>View default prompt</summary>
-            <div className={`mt-2 p-3 rounded-lg text-[12px] font-mono whitespace-pre-wrap ${dark ? 'bg-white/5 text-white/50' : 'bg-slate-50 text-slate-600'}`}>{current.default_prompt}</div>
-          </details>
-
           <label className={`block text-[13px] font-medium mb-1.5 ${dark ? 'text-white/60' : 'text-slate-700'}`}>Your custom system prompt</label>
           <textarea
             rows={12}
@@ -146,6 +140,25 @@ export default function PersonasView() {
               {saving ? 'Saving...' : 'Save instructions'}
             </button>
           </div>
+        </div>
+
+        {/* Danger zone */}
+        <div className={`mt-10 rounded-2xl border p-6 border-red-500/20 bg-red-500/5`}>
+          <h3 className="text-[16px] font-bold text-red-500 mb-2">{t('settings_delete_account')}</h3>
+          <p className={`text-[13px] mb-4 ${dark ? 'text-white/40' : 'text-slate-500'}`}>
+            {t('settings_delete_confirm')}
+          </p>
+          <button
+            onClick={async () => {
+              if (window.confirm(t('settings_delete_confirm'))) {
+                await api.delete('/auth/delete-account');
+                window.location.href = '/';
+              }
+            }}
+            className="px-5 h-10 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-[13px] transition-all"
+          >
+            {t('settings_delete_account')}
+          </button>
         </div>
       </div>
     </div>

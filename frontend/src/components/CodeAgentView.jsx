@@ -4,6 +4,8 @@ import { Loader2, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Rocket
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { JarvisFace } from './JarvisLogo';
+import { t } from '../lib/i18n';
 
 const ROLE_COLORS = {
   'ceo': { dot: 'bg-amber-400', text: 'text-amber-400', label: 'CEO' },
@@ -28,6 +30,10 @@ export default function CodeAgentView() {
   const [jobs, setJobs] = useState([]);
   const [pState, setPState] = useState(null);
   const [description, setDescription] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(null); // project id
+  const [deleteGithub, setDeleteGithub] = useState(false);
+  const [deleteVercel, setDeleteVercel] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [building, setBuilding] = useState(false);
   const [pushing, setPushing] = useState(false);
@@ -76,6 +82,20 @@ export default function CodeAgentView() {
       } catch (_) {}
       loadPreview(id);
     } catch (e) { toast({ title: 'Failed to open', variant: 'destructive' }); }
+  };
+
+  const remove = async (pid, gh = false, vc = false) => {
+    setDeleting(true);
+    try {
+      await api.delete(`/projects/${pid}?github=${gh}&vercel=${vc}`);
+      toast({ title: t('dashboard_delete_project'), description: 'Project removed.' });
+      loadProjects();
+      setShowDeleteModal(null);
+    } catch (e) {
+      toast({ title: 'Delete failed', variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const loadPreview = async (pid) => {
@@ -184,7 +204,7 @@ export default function CodeAgentView() {
       toast({ title: 'Premium Feature', description: 'Source code download is available on paid plans.', variant: 'default' });
       return;
     }
-    window.location.href = `${api.defaults.baseURL}/projects/${active.project.id}/download-zip?token=${localStorage.getItem('wingman_token')}`;
+    window.location.href = `${api.defaults.baseURL}/projects/${active.project.id}/download-zip?token=${localStorage.getItem('jarvis_token')}`;
   };
 
   const remove = async (id) => {
@@ -297,7 +317,8 @@ export default function CodeAgentView() {
                         </div>
                         <div className={`text-[11px] truncate opacity-40 ${dark ? 'text-white' : 'text-slate-900'}`}>{p.description || t('dashboard_desc')}</div>
                       </div>
-                      <button onClick={() => remove(p.id)} className={`${dark ? 'text-white/40 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`}>
+                      <button onClick={() => { setShowDeleteModal(p.id); setDeleteGithub(!!p.github_repo); setDeleteVercel(!!p.preview_url); }} 
+                        className={`${dark ? 'text-white/40 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`}>
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -459,7 +480,7 @@ export default function CodeAgentView() {
                     <details key={`group-${currentGroup.id}`} className={`group p-3 rounded-xl ${dark ? 'bg-white/[0.02] hover:bg-white/[0.04]' : 'bg-slate-50 hover:bg-slate-100'} transition-all cursor-pointer border border-transparent hover:border-white/5`}>
                       <summary className="flex items-center gap-3 list-none">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-white/5' : 'bg-white shadow-sm border border-slate-100'}`}>
-                          <WingmanFace size={16} />
+                          <JarvisFace size={16} />
                         </div>
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                           <div>
@@ -503,7 +524,7 @@ export default function CodeAgentView() {
                     elements.push(
                       <div key={j.id} className={`flex items-start gap-3 px-3 py-3 rounded-xl ${dark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'} transition-colors`}>
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-white/5' : 'bg-white shadow-sm border border-slate-100'}`}>
-                          <WingmanFace size={18} />
+                          <JarvisFace size={18} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
@@ -672,6 +693,37 @@ export default function CodeAgentView() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Delete Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-md bg-black/40">
+          <div className={`w-full max-w-sm rounded-3xl p-6 border shadow-2xl ${dark ? 'bg-zinc-900 border-white/10' : 'bg-white border-slate-200'}`}>
+            <h3 className={`text-[18px] font-bold mb-2 ${dark ? 'text-white' : 'text-slate-900'}`}>{t('dashboard_delete_project')}</h3>
+            <p className={`text-[13px] mb-6 ${dark ? 'text-white/50' : 'text-slate-500'}`}>{t('dashboard_delete_confirm')}</p>
+            
+            <div className="space-y-3 mb-6">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input type="checkbox" checked={deleteGithub} onChange={e => setDeleteGithub(e.target.checked)} className="rounded border-slate-300 text-red-500 focus:ring-red-500" />
+                <span className={`text-[13px] font-medium transition-colors ${deleteGithub ? 'text-red-500' : dark ? 'text-white/60' : 'text-slate-600'}`}>{t('dashboard_delete_github')}</span>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input type="checkbox" checked={deleteVercel} onChange={e => setDeleteVercel(e.target.checked)} className="rounded border-slate-300 text-red-500 focus:ring-red-500" />
+                <span className={`text-[13px] font-medium transition-colors ${deleteVercel ? 'text-red-500' : dark ? 'text-white/60' : 'text-slate-600'}`}>{t('dashboard_delete_vercel')}</span>
+              </label>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteModal(null)} className={`flex-1 h-11 rounded-xl text-[14px] font-bold transition-all ${dark ? 'bg-white/5 text-white hover:bg-white/10' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
+                {t('dashboard_cancel')}
+              </button>
+              <button onClick={() => remove(showDeleteModal, deleteGithub, deleteVercel)} disabled={deleting}
+                className="flex-1 h-11 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-[14px] flex items-center justify-center gap-2 transition-all">
+                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {t('dashboard_confirm')}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -5,11 +5,11 @@ import { useAuth } from '../context/AuthContext';
 import { t } from '../lib/i18n';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
-import { WingmanFace } from './WingmanLogo';
+import { JarvisFace } from './JarvisLogo';
 
 const BotAvatar = ({ size = 40, dark = true, color = "#22a3ff" }) => (
   <div className="flex items-center justify-center" style={{ width: size, height: size }}>
-    <WingmanFace size={size * 0.8} />
+    <JarvisFace size={size * 0.8} />
   </div>
 );
 
@@ -29,6 +29,7 @@ const ROLE_COLORS = {
   'jarvis': { bg: 'bg-sky-500/5', text: 'text-sky-400', border: 'border-sky-500/10', icon: 'text-sky-400' },
 };
 
+export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');

@@ -20,18 +20,18 @@ export const AuthProvider = ({ children }) => {
               email: session.user?.email,
               name: session.user?.user_metadata?.full_name || session.user?.user_metadata?.name || session.user?.email?.split('@')[0],
             });
-            localStorage.setItem('wingman_token', data.access_token);
+            localStorage.setItem('jarvis_token', data.access_token);
             setUser(data.user);
             setLoading(false);
             return;
           } catch (_) {}
         }
 
-        const token = localStorage.getItem('wingman_token');
+        const token = localStorage.getItem('jarvis_token');
         if (!token) { setLoading(false); return; }
         await api.get('/auth/me')
           .then((r) => setUser(r.data))
-          .catch(() => localStorage.removeItem('wingman_token'))
+          .catch(() => localStorage.removeItem('jarvis_token'))
           .finally(() => setLoading(false));
       } catch (e) {
         console.error("Auth init failed", e);
@@ -49,7 +49,7 @@ export const AuthProvider = ({ children }) => {
             email: session.user?.email,
             name: session.user?.user_metadata?.full_name || session.user?.user_metadata?.name || session.user?.email?.split('@')[0],
           });
-          localStorage.setItem('wingman_token', data.access_token);
+          localStorage.setItem('jarvis_token', data.access_token);
           setUser(data.user);
         } catch (_) {}
       }
@@ -59,14 +59,14 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
-    localStorage.setItem('wingman_token', data.access_token);
+    localStorage.setItem('jarvis_token', data.access_token);
     setUser(data.user);
     return data.user;
   };
 
   const signup = async (name, email, password) => {
     const { data } = await api.post('/auth/signup', { name, email, password });
-    localStorage.setItem('wingman_token', data.access_token);
+    localStorage.setItem('jarvis_token', data.access_token);
     setUser(data.user);
     return data.user;
   };
@@ -86,7 +86,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    localStorage.removeItem('wingman_token');
+    localStorage.removeItem('jarvis_token');
     await supabase.auth.signOut().catch(() => {});
     setUser(null);
   };

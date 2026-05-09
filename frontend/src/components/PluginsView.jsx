@@ -193,7 +193,7 @@ export default function PluginsView() {
               </div>
 
               <a
-                href={`https://t.me/${modal.botUsername}`}
+                href={`https://t.me/${modal.botUsername}?start=${modal.code}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 px-6 h-12 rounded-full bg-[#26A5E4] hover:bg-[#2088bc] text-white font-bold text-[15px] transition-all shadow-lg shadow-[#26A5E4]/30"

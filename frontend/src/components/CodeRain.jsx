@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
-// Subtle floating-letters background like emergent.sh/wingman left side
+// Subtle floating-letters background like Jarvis left side
 const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+&%$#@*-/?!.,';
 
 export default function CodeRain({ density = 0.5 }) {

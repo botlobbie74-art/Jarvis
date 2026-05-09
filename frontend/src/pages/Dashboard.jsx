@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import api from '../lib/api';
 import { ASSISTANTS } from '../data/assistants';
-import { WingmanFace } from '../components/WingmanLogo';
+import { JarvisFace, JarvisWordmark } from '../components/JarvisLogo';
 import { Plus, MessageSquare, Puzzle, ListChecks, LogOut, Send, Loader2, Trash2, Sparkles, Hammer, CreditCard, Settings as SettingsIcon, Sun, Moon, Zap } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
@@ -82,13 +82,15 @@ export default function Dashboard() {
     <div className={`min-h-screen flex ${dark ? 'bg-black' : 'bg-white'}`}>
       {/* Sidebar */}
       <aside className={`w-[260px] border-r flex flex-col backdrop-blur-xl ${dark ? 'bg-black/80 border-white/5' : 'bg-slate-50/80 border-slate-200'}`}>
-        <div className={`p-6 flex items-center gap-3 ${dark ? 'text-white' : 'text-slate-900'}`}>
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-fuchsia-600 flex items-center justify-center text-white shadow-lg">
-            <WingmanFace size={20} />
-          </div>
-          <div className="flex-1">
-            <div className="text-[15px] font-bold tracking-tight">Jarvis</div>
-            <div className={`text-[10px] uppercase tracking-widest font-medium opacity-40`}>Engineering AI</div>
+        <div className={`p-6 flex items-center justify-between ${dark ? 'text-white' : 'text-slate-900'}`}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center shadow-lg">
+              <JarvisFace size={20} />
+            </div>
+            <div className="flex-1">
+              <div className="text-[15px] font-bold tracking-tight">Jarvis</div>
+              <div className={`text-[10px] uppercase tracking-widest font-medium opacity-40`}>Autonomous AI</div>
+            </div>
           </div>
           <button onClick={toggle} className={`p-1.5 rounded-lg transition-all ${dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-200'}`}>
             {dark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
@@ -106,6 +108,7 @@ export default function Dashboard() {
                 <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center">
                   <Sparkles className="w-3 h-3 text-white" />
                 </div>
+                <span className={`text-[12px] font-bold tracking-widest ${dark ? 'text-white' : 'text-slate-900'}`}>JARVIS</span>
                 <span className={`text-[13px] font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{user.credits?.toLocaleString() || 0}</span>
               </div>
             </div>

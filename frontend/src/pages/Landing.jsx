@@ -4,11 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import CodeRain from '../components/CodeRain';
 import ShowcaseCarousel from '../components/ShowcaseCarousel';
-import { WingmanFace, WingmanWordmark } from '../components/WingmanLogo';
+import { JarvisFace, JarvisWordmark } from '../components/JarvisLogo';
 import { Mail, Github, X as XIcon, Loader2, Sun, Moon } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { useToast } from '../hooks/use-toast';
+import { t } from '../lib/i18n';
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -46,7 +47,6 @@ export default function Landing() {
     setOauthLoading('google');
     try {
       await loginWithGoogle();
-      // Redirect happens via Supabase OAuth flow
     } catch (err) {
       toast({ title: 'Google login failed', description: 'Please try again', variant: 'destructive' });
       setOauthLoading(null);
@@ -69,14 +69,14 @@ export default function Landing() {
       <div className="relative w-full lg:w-1/2 flex flex-col">
         {dark && <CodeRain density={0.7} />}
         <div className="relative z-10 px-8 pt-7 flex items-center justify-between">
-          <WingmanWordmark dark={dark} />
+          <JarvisWordmark dark={dark} />
           <button onClick={toggle} className={`p-2 rounded-lg transition-colors ${dark ? 'text-white/40 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
             {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
         </div>
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 pb-10">
           <div className="w-full max-w-[360px] flex flex-col items-center">
-            <WingmanFace size={80} />
+            <JarvisFace size={80} />
             <h1 className={`mt-6 text-[28px] font-semibold tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`}>
               Introducing Jarvis
             </h1>
@@ -86,7 +86,6 @@ export default function Landing() {
 
             {mode === null && (
               <div className="w-full mt-8 space-y-3">
-                {/* Google OAuth — real */}
                 <button
                   onClick={handleGoogle}
                   disabled={!!oauthLoading}
@@ -97,16 +96,11 @@ export default function Landing() {
                   {oauthLoading === 'google' ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    <img
-                      src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg"
-                      alt=""
-                      className="w-5 h-5"
-                    />
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="" className="w-5 h-5" />
                   )}
                   <span>Continue with Google</span>
                 </button>
 
-                {/* GitHub OAuth — real */}
                 <button
                   onClick={handleGithub}
                   disabled={!!oauthLoading}
@@ -128,7 +122,6 @@ export default function Landing() {
                   <div className={`flex-1 h-px ${dark ? 'bg-white/10' : 'bg-slate-200'}`} />
                 </div>
 
-                {/* Email */}
                 <button
                   onClick={() => setMode('login')}
                   className={`w-full h-12 rounded-full flex items-center justify-center gap-2 transition-colors border ${
@@ -159,7 +152,7 @@ export default function Landing() {
                 </button>
                 {mode === 'signup' && (
                   <div>
-                    <Label htmlFor="name" className={dark ? 'text-white/70' : 'text-slate-600'}>Name</Label>
+                    <Label htmlFor="name" className={dark ? 'text-white/70' : 'text-slate-600'}>{t('auth_name')}</Label>
                     <Input
                       id="name"
                       value={name}
@@ -170,7 +163,7 @@ export default function Landing() {
                   </div>
                 )}
                 <div>
-                  <Label htmlFor="email" className={dark ? 'text-white/70' : 'text-slate-600'}>Email</Label>
+                  <Label htmlFor="email" className={dark ? 'text-white/70' : 'text-slate-600'}>{t('auth_email')}</Label>
                   <Input
                     id="email"
                     type="email"
@@ -181,7 +174,7 @@ export default function Landing() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="password" className={dark ? 'text-white/70' : 'text-slate-600'}>Password</Label>
+                  <Label htmlFor="password" className={dark ? 'text-white/70' : 'text-slate-600'}>{t('auth_password')}</Label>
                   <Input
                     id="password"
                     type="password"
@@ -197,16 +190,16 @@ export default function Landing() {
                   disabled={loading}
                   className="w-full h-12 rounded-full bg-[#22a3ff] hover:bg-[#1a8de8] text-white font-medium transition-colors disabled:opacity-60"
                 >
-                  {loading ? 'Please wait...' : mode === 'signup' ? 'Create account' : 'Sign in'}
+                  {loading ? '...' : mode === 'signup' ? t('hero_start') : t('auth_submit')}
                 </button>
                 <p className={`text-center text-[13px] pt-1 ${dark ? 'text-white/50' : 'text-slate-500'}`}>
-                  {mode === 'signup' ? 'Already have an account?' : "Don't have an account?"}{' '}
+                  {mode === 'signup' ? t('auth_switch_login').split('?')[0] : t('auth_switch_signup').split('?')[0]}{' '}
                   <button
                     type="button"
                     onClick={() => setMode(mode === 'signup' ? 'login' : 'signup')}
                     className="font-medium underline text-[#22a3ff]"
                   >
-                    {mode === 'signup' ? 'Sign in' : 'Sign up'}
+                    {mode === 'signup' ? t('auth_switch_login').split('?')[1] : t('auth_switch_signup').split('?')[1]}
                   </button>
                 </p>
               </form>
@@ -222,4 +215,3 @@ export default function Landing() {
     </div>
   );
 }
-
