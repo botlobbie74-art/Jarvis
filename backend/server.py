@@ -71,7 +71,8 @@ class TaskIn(BaseModel):
     title: str; schedule: Optional[str] = None; plugins: List[str] = []
 
 class ProjectCreate(BaseModel):
-    description: str  # natural language description of app to build
+    description: str
+    ultra: bool = False  # natural language description of app to build
 
 class PlanApprove(BaseModel):
     project_id: str
@@ -99,8 +100,9 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     return res.data[0]
 
 # ============ BILLING (CREDITS) ============
-CREDIT_PRICES = {"1000": 10.0, "5000": 40.0, "10000": 70.0}
+CREDIT_PRICES = {"1000": 10.0, "2500": 24.99, "5000": 49.99}
 TOKEN_TO_CREDIT_RATE = 0.0001
+ULTRA_MULTIPLIER = 10.0
 BUILD_FLAT_FEE = 5.0
 
 def _user_credits(uid: str) -> float:
@@ -633,7 +635,8 @@ async def list_projects(user=Depends(get_current_user)):
 @api_router.post("/projects/plan")
 async def plan_project(payload: ProjectCreate, user=Depends(get_current_user)):
     pid = str(uuid.uuid4())
-    res = await router_call("planner", PLAN_SYSTEM, f"App description: {payload.description}\n\nReturn STRICT JSON ONLY.", sb=sb)
+    model_role = "planner" if not payload.ultra else "deep_research" # use stronger model for ultra
+    res = await router_call(model_role, PLAN_SYSTEM, f"App description: {payload.description}\n\nReturn STRICT JSON ONLY.", sb=sb)
     raw = res["content"]
     raw_clean = raw.strip()
     if raw_clean.startswith("```"):
@@ -664,8 +667,11 @@ async def suggest_continuation(pid: str, user=Depends(get_current_user)):
     except Exception:
         return {"suggestions": ["Add user profiles", "Integrate analytics", "Improve UI design", "Add dark mode"]}
 
+class BuildRequest(BaseModel):
+    ultra: bool = False
+
 @api_router.post("/projects/{pid}/build")
-async def build_project(pid: str, user=Depends(get_current_user)):
+async def build_project(pid: str, req: BuildRequest, user=Depends(get_current_user)):
     # check credits instead of quota
     _check_credits(user["id"], required=BUILD_FLAT_FEE)
     proj = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).single().execute().data
@@ -721,26 +727,51 @@ async def build_project(pid: str, user=Depends(get_current_user)):
 
     # Estimate 1 token approx 4 chars
     estimated_tokens = generated_content_len // 4
-    build_token_cost = estimated_tokens * TOKEN_TO_CREDIT_RATE
+    rate = TOKEN_TO_CREDIT_RATE * (ULTRA_MULTIPLIER if req.ultra else 1.0)
+    build_token_cost = estimated_tokens * rate
 
-    _consume_credits(user["id"], BUILD_FLAT_FEE + build_token_cost, f"Project build {pid[:8]}: {estimated_tokens} tokens")
+    _consume_credits(user["id"], BUILD_FLAT_FEE + build_token_cost, f"Project build {pid[:8]} ({'ULTRA' if req.ultra else 'SMART'}): {estimated_tokens} tokens")
     # Update project state
     try:
         sb.table("jarvis_project_state").upsert({
-            "project_id": pid, "current_phase": "review",
-            "completed_steps": [{"step": "plan"}, {"step": "code", "files": generated}],
-            "pending_steps": [{"step": "review"}, {"step": "test"}],
-            "last_summary": f"Generated {len(generated)} files. Ready for review.",
+            "project_id": pid, "current_phase": "qa",
+            "last_summary": f"Generated {len(generated)} files. Running mandatory QA...",
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }).execute()
     except Exception: pass
-    # Auto-enqueue a reviewer job in parallel
+
+    # === MANDATORY QA / CONTROL ===
     try:
-        rj = {"id": str(uuid.uuid4()), "project_id": pid, "agent_type": "reviewer", "status": "queued",
-              "payload": {"instruction": f"Review the {len(generated)} generated files for this project."}}
-        sb.table("jarvis_agent_jobs").insert(rj).execute()
-        asyncio.create_task(_run_job(rj["id"]))
+        all_content = []
+        for path in generated:
+            f_data = sb.table("jarvis_project_files").select("content").eq("path", path).eq("project_id", pid).single().execute().data
+            if f_data: all_content.append(f"--- {path} ---\n{f_data.get('content', '')}")
+            
+        qa_prompt = "Review these generated files and provide a short audit:\n\n" + "\n".join(all_content)[:15000]
+        reviewer_res = await router_call("reviewer", "You are the QA Reviewer. Check for errors and bugs.", qa_prompt, sb=sb)
+        tester_res = await router_call("tester", "You are the QA Tester. Provide a short test summary.", qa_prompt, sb=sb)
+        
+        # Persist these as jobs so they show up in the feed BEFORE the final message
+        for agent, res in [("reviewer", reviewer_res), ("tester", tester_res)]:
+            job_row = {"id": str(uuid.uuid4()), "project_id": pid, "agent_type": agent, "status": "done",
+                       "payload": {"instruction": f"Mandatory {agent.upper()} check on all files"},
+                       "result": {"content": res["content"][:2000], "provider": res.get("provider")},
+                       "started_at": datetime.now(timezone.utc).isoformat(),
+                       "finished_at": datetime.now(timezone.utc).isoformat()}
+            sb.table("jarvis_agent_jobs").insert(job_row).execute()
+    except Exception as e:
+        log.warning("Mandatory QA step failed: " + str(e))
+
+    try:
+        sb.table("jarvis_project_state").upsert({
+            "project_id": pid, "current_phase": "review",
+            "completed_steps": [{"step": "plan"}, {"step": "code", "files": generated}, {"step": "qa"}],
+            "pending_steps": [],
+            "last_summary": f"Generated {len(generated)} files and passed QA. Ready for review.",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
     except Exception: pass
+
     return {"ok": True, "generated": generated}
 
 @api_router.get("/projects/{pid}")
@@ -791,7 +822,35 @@ async def push_to_github(pid: str, user=Depends(get_current_user)):
             except GithubException:
                 repo.create_file(f["path"], "Add via Jarvis", f["content"])
         sb.table("jarvis_projects").update({"github_repo": repo_name, "github_url": repo.html_url, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", pid).execute()
-        return {"ok": True, "github_url": repo.html_url}
+        
+        live_url = None
+        user_plan = sb.table("jarvis_subscriptions").select("plan").eq("user_id", user["id"]).execute()
+        is_paid = user_plan.data and user_plan.data[0].get("plan") not in ("free", None)
+
+        VERCEL_TOKEN = os.environ.get("VERCEL_TOKEN")
+        if VERCEL_TOKEN and is_paid:
+            try:
+                v_headers = {"Authorization": f"Bearer {VERCEL_TOKEN}"}
+                clean_repo_name = repo_name.lower().replace("_", "-")[:50]
+                custom_domain = f"{clean_repo_name}.jarvisagent.app"
+                
+                v_payload = {
+                    "name": clean_repo_name,
+                    "target": "production",
+                    "alias": [custom_domain],
+                    "projectSettings": {"framework": "create-react-app" if any(f["path"].endswith("App.jsx") for f in files) else None},
+                    "files": [{"file": f["path"], "data": f["content"]} for f in files]
+                }
+                async with httpx.AsyncClient() as cli:
+                    vr = await cli.post("https://api.vercel.com/v13/deployments", headers=v_headers, json=v_payload)
+                    if vr.status_code < 400:
+                        url_raw = vr.json().get("url")
+                        # Try to use the custom domain alias if Vercel assigned it
+                        live_url = f"https://{custom_domain}" if "alias" in vr.json() else (f"https://{url_raw}" if url_raw else None)
+            except Exception as ve:
+                log.warning(f"Vercel deployment failed: {ve}")
+
+        return {"ok": True, "github_url": repo.html_url, "live_url": live_url}
     except Exception as e:
         log.exception("gh err")
         raise HTTPException(500, f"GitHub push failed: {str(e)[:200]}")
@@ -1403,12 +1462,38 @@ async def preview_project(pid: str, user=Depends(get_current_user)):
     if app_component:
         # Build React standalone preview using Babel CDN
         all_jsx = "\n\n".join(f"// --- {f['path']} ---\n{f['content']}" for f in jsx_files)
-        app_name = app_component["path"].split("/")[-1].replace(".jsx", "").replace(".tsx", "")
+        heal_token = create_token(user["id"])
+        error_catcher = f"""
+<script>
+window.onerror = function(msg, url, lineNo, columnNo, error) {{
+  if(window._healed) return;
+  window._healed = true;
+  fetch('/api/projects/{pid}/heal', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json', 'Authorization': 'Bearer {heal_token}'}},
+    body: JSON.stringify({{error: msg.toString(), stack: error ? error.stack : ''}})
+  }});
+}};
+</script>"""
         html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Preview</title>
+{error_catcher}
+<script>
+window.addEventListener('message', e => {{
+  if(e.data && e.data.type === 'set-magic-edit') window._magicEditEnabled = e.data.enabled;
+}});
+document.addEventListener('click', function(e) {{
+  if(!window._magicEditEnabled) return;
+  e.preventDefault(); e.stopPropagation();
+  let el = e.target;
+  let info = el.tagName.toLowerCase();
+  if(el.id) info += "#" + el.id;
+  window.parent.postMessage({{type: 'magic-edit-selection', selector: info, text: el.innerText.substring(0,30)}}, "*");
+}}, true);
+</script>
 <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -1424,6 +1509,14 @@ try {{
   ReactDOM.createRoot(rootEl).render(React.createElement({app_name}));
 }} catch(e) {{
   document.getElementById('root').innerHTML = '<div style="padding:2rem;color:#ef4444;font-family:monospace">Preview error: ' + e.message + '</div>';
+  if(!window._healed) {{
+    window._healed = true;
+    fetch('/api/projects/{pid}/heal', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json', 'Authorization': 'Bearer {heal_token}'}},
+      body: JSON.stringify({{error: e.message, stack: e.stack}})
+    }});
+  }}
 }}
 </script>
 </body></html>"""
@@ -1443,6 +1536,31 @@ try {{
         <h2 style="color:#22d3ee">Project Files</h2><ul style="list-style:none;padding:0">{file_list}</ul></body></html>"""
 
     return HTMLResponse(html, headers={"X-Frame-Options": "SAMEORIGIN", "Content-Security-Policy": "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:"})
+
+class HealRequest(BaseModel):
+    error: str
+    stack: str = ""
+
+@api_router.post("/projects/{pid}/heal")
+async def heal_project(pid: str, req: HealRequest, user=Depends(get_current_user)):
+    """Trigger the bug_hunter to fix a frontend crash caught by window.onerror."""
+    proj = sb.table("jarvis_projects").select("id").eq("id", pid).eq("user_id", user["id"]).execute()
+    if not proj.data: raise HTTPException(404, "Not found")
+    
+    # Check if a bug_hunter is already running to avoid loops
+    active_jobs = sb.table("jarvis_jobs").select("*").eq("project_id", pid).eq("status", "processing").execute()
+    if any(j.get("agent_type") == "bug_hunter" for j in active_jobs.data):
+        return {"ok": False, "reason": "Already healing"}
+        
+    job_id = str(uuid.uuid4())
+    payload = {"instruction": f"The frontend crashed in the preview iframe. Error: {req.error}\\nStack trace:\\n{req.stack}\\nPlease find the broken React component or code and fix it."}
+    sb.table("jarvis_jobs").insert({
+        "id": job_id, "project_id": pid, "agent_type": "bug_hunter", 
+        "status": "queued", "payload": payload
+    }).execute()
+    # Trigger background worker
+    asyncio.create_task(_run_job(job_id))
+    return {"ok": True, "job_id": job_id}
 
 # ============ PERSONAS (custom system prompts) ============
 class PersonaIn(BaseModel):
@@ -1490,3 +1608,27 @@ async def reset_persona(assistant_id: str, user=Depends(get_current_user)):
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+@api_router.post("/voice/transcribe")
+async def voice_transcribe(audio: UploadFile = File(...), user=Depends(get_current_user)):
+    if not GROQ_API_KEY: raise HTTPException(400, "GROQ_API_KEY not set")
+    try:
+        # Save temp file
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp.write(await audio.read())
+            tmp_path = tmp.name
+            
+        async with httpx.AsyncClient() as cli:
+            with open(tmp_path, "rb") as f:
+                res = await cli.post(
+                    "https://api.groq.com/openai/v1/audio/transcriptions",
+                    headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+                    files={"file": (audio.filename, f), "model": (None, "distil-whisper-large-v3-en")}
+                )
+        import os
+        os.unlink(tmp_path)
+        if res.status_code >= 400: raise Exception(res.text)
+        return {"text": res.json().get("text", "")}
+    except Exception as e:
+        log.exception("transcribe err")
+        raise HTTPException(500, f"Transcription failed: {str(e)}")

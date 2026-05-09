@@ -37,6 +37,7 @@ export default function CodeAgentView() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [showRepoMenu, setShowRepoMenu] = useState(false);
   const [autoBuild, setAutoBuild] = useState(true);
+  const [ultraMode, setUltraMode] = useState(false);
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
   const { toast } = useToast();
@@ -123,7 +124,7 @@ export default function CodeAgentView() {
     try {
       let fullDesc = description;
       if (attachedFile) fullDesc += `\n\n[Attached file: ${attachedFile.name}]`;
-      const { data } = await api.post('/projects/plan', { description: fullDesc });
+      const { data } = await api.post('/projects/plan', { description: fullDesc, ultra: ultraMode });
       setProjects((p) => [data, ...p]);
       setDescription('');
       setAttachedFile(null);
@@ -146,7 +147,7 @@ export default function CodeAgentView() {
     setBuilding(true);
     setPreviewSrc('');
     try {
-      await api.post(`/projects/${active.project.id}/build`);
+      await api.post(`/projects/${active.project.id}/build`, { ultra: ultraMode });
       await openProject(active.project.id);
       toast({ title: 'Build complete' });
     } catch (e) {
@@ -158,7 +159,12 @@ export default function CodeAgentView() {
     setPushing(true);
     try {
       const { data } = await api.post(`/projects/${active.project.id}/push-github`);
-      toast({ title: 'Pushed to GitHub', description: data.github_url });
+      if (data.live_url) {
+        toast({ title: 'Deployed to Vercel & GitHub', description: `Live at: ${data.live_url}` });
+        window.open(data.live_url, '_blank');
+      } else {
+        toast({ title: 'Pushed to GitHub', description: data.github_url });
+      }
     } catch (e) {
       toast({ title: 'GitHub push failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
     } finally { setPushing(false); setShowRepoMenu(false); }
@@ -226,11 +232,17 @@ export default function CodeAgentView() {
                   <input type="checkbox" checked={autoBuild} onChange={(e) => setAutoBuild(e.target.checked)} className="rounded border-slate-300 text-cyan-500 focus:ring-cyan-500 bg-white/10" />
                   <span className={`text-[12px] font-medium ${dark ? 'text-white/60' : 'text-slate-500'}`}>Auto-Build</span>
                 </label>
+                <div className={`w-px h-4 ${dark ? 'bg-white/10' : 'bg-slate-200'}`} />
+                <button onClick={() => setUltraMode(!ultraMode)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all border ${ultraMode ? 'bg-amber-500/10 border-amber-500/50 text-amber-400' : dark ? 'bg-white/5 border-white/10 text-white/40' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                  <Sparkles className={`w-3 h-3 ${ultraMode ? 'animate-pulse' : ''}`} />
+                  <span className="text-[11px] font-bold">{ultraMode ? 'ULTRA SMART' : 'SMART'}</span>
+                </button>
               </div>
               <button onClick={createPlan} disabled={creating || !description.trim()}
                 className={`h-11 px-6 rounded-full flex items-center gap-2 transition-colors disabled:opacity-40 font-semibold text-[14px] ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
-                {creating ? 'Planning...' : 'Generate App'}
+                {creating ? 'Planning...' : 'Build App'}
               </button>
             </div>
           </div>
@@ -302,23 +314,13 @@ export default function CodeAgentView() {
           {building ? 'Building...' : 'Build'}
         </button>
 
-        <div className="relative">
-          <button onClick={() => setShowRepoMenu(!showRepoMenu)} disabled={pushing || !active.files?.length}
-            className={`h-9 px-3 rounded-xl text-[13px] font-medium flex items-center gap-2 disabled:opacity-50 transition-all ${dark ? 'bg-white/5 text-white border border-white/10 hover:bg-white/10' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
-            <Github className="w-4 h-4" />Deploy
+        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/5 p-1 rounded-xl">
+          <button onClick={() => setView('chat')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'chat' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Preview</button>
+          <button onClick={downloadZip} className="h-8 px-3 rounded-lg text-[12px] font-semibold text-slate-500 hover:text-slate-700 transition-all flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />Code</button>
+          <button onClick={pushGithub} disabled={pushing} className="h-8 px-4 rounded-lg text-[12px] font-bold bg-slate-900 dark:bg-white text-white dark:text-black hover:opacity-90 transition-all flex items-center gap-1.5">
+            {pushing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />}
+            Deploy
           </button>
-          {showRepoMenu && (
-            <div className={`absolute top-full right-0 mt-2 w-56 rounded-2xl border shadow-2xl z-50 overflow-hidden ${dark ? 'bg-black/90 border-white/10' : 'bg-white border-slate-200'}`}>
-              <button onClick={pushGithub}
-                className={`w-full text-left px-4 py-3 text-[13px] flex items-center gap-3 transition-colors ${dark ? 'hover:bg-white/10 text-white' : 'hover:bg-slate-50 text-slate-700'}`}>
-                <Rocket className="w-4 h-4 text-emerald-500" />Push to GitHub
-              </button>
-              <button onClick={downloadZip}
-                className={`w-full text-left px-4 py-3 text-[13px] flex items-center gap-3 transition-colors ${dark ? 'hover:bg-white/10 text-white' : 'hover:bg-slate-50 text-slate-700'}`}>
-                <Download className="w-4 h-4 text-sky-500" />Download ZIP
-              </button>
-            </div>
-          )}
         </div>
 
         <button onClick={toggle} className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${dark ? 'bg-white/5 text-white hover:bg-white/10' : 'bg-white border border-slate-200 hover:bg-slate-100'}`}>

@@ -13,6 +13,7 @@ export default function BillingView() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(null);
+  const [autoTopup, setAutoTopup] = useState(false);
   const { toast } = useToast();
 
   const load = async () => {
@@ -96,7 +97,16 @@ export default function BillingView() {
 
         {/* Credit Top-ups */}
         <div className="mb-10">
-          <h2 className="text-[18px] font-semibold text-slate-900 mb-3">Top up Credits</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[18px] font-semibold text-slate-900">Top up Credits</h2>
+            <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-full border border-slate-200 hover:border-amber-500 transition-colors">
+              <input type="checkbox" checked={autoTopup} onChange={(e) => {
+                setAutoTopup(e.target.checked);
+                toast({ title: e.target.checked ? 'Auto-topup enabled' : 'Auto-topup disabled', description: 'When balance falls below 500, we will auto-recharge 1000 credits.' });
+              }} className="rounded border-slate-300 text-amber-500 focus:ring-amber-500" />
+              <span className="text-[12px] font-medium text-slate-700">Auto-recharge (1000 credits)</span>
+            </label>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Object.entries(creditPrices).map(([amount, price]) => (
               <div key={amount} className="bg-white rounded-2xl p-6 border border-slate-200 hover:border-amber-500 transition-colors group">

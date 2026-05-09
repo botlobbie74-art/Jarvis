@@ -36,8 +36,30 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
   const [loading, setLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
   const [builderAction, setBuilderAction] = useState(null);
+  const [recording, setRecording] = useState(false);
+  const [magicEdit, setMagicEdit] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const handleMsg = (e) => {
+      if (e.data && e.data.type === 'magic-edit-selection') {
+        setInput(`Edit this element: ${e.data.selector} (${e.data.text})\nMake it ...`);
+      }
+    };
+    window.addEventListener('message', handleMsg);
+    return () => window.removeEventListener('message', handleMsg);
+  }, []);
+
+  useEffect(() => {
+    // Notify iframe of magic edit state
+    const iframes = document.querySelectorAll('iframe');
+    iframes.forEach(ifrm => {
+      ifrm.contentWindow?.postMessage({ type: 'set-magic-edit', enabled: magicEdit }, '*');
+    });
+  }, [magicEdit]);
   const { toast } = useToast();
   const { theme } = useTheme();
   const dark = theme === 'dark';
@@ -141,6 +163,43 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
     );
   }
 
+  const toggleMagicEdit = () => {
+    setMagicEdit(!magicEdit);
+    toast({ title: !magicEdit ? 'Magic Edit ON' : 'Magic Edit OFF', description: !magicEdit ? 'Click elements in preview to edit them.' : 'Standard preview mode.' });
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
+      recorder.onstop = async () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const formData = new FormData();
+        formData.append('audio', blob, 'voice.wav');
+        setSending(true);
+        try {
+          const { data } = await api.post('/voice/transcribe', formData);
+          setInput(data.text);
+          // Optional: automatically send? Let's just set input for now.
+        } catch (e) {
+          toast({ title: 'Transcription failed', variant: 'destructive' });
+        } finally { setSending(false); }
+      };
+      recorder.start();
+      setRecording(true);
+    } catch (e) {
+      toast({ title: 'Microphone access denied', variant: 'destructive' });
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+  };
+
   return (
     <div className={`flex-1 flex flex-col ${dark ? 'bg-black' : 'bg-white'}`}>
       <header className={`px-8 py-4 border-b backdrop-blur flex items-center gap-3 ${dark ? 'border-white/10 bg-black/30' : 'border-slate-200 bg-slate-50/50'}`}>
@@ -149,6 +208,10 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
           <div className={`text-[15px] font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Jarvis</div>
           <div className="text-[12px] text-[#22a3ff]">Your personal AI agent</div>
         </div>
+        <button onClick={toggleMagicEdit} className={`h-8 px-3 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${magicEdit ? 'bg-cyan-500 text-white shadow-lg' : dark ? 'bg-white/5 text-white/40' : 'bg-slate-100 text-slate-500'}`}>
+          <MousePointer2 className="w-3.5 h-3.5" />
+          MAGIC EDIT
+        </button>
       </header>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
         {loading && <div className="flex justify-center py-8"><Loader2 className={`w-5 h-5 animate-spin ${dark ? 'text-white/30' : 'text-slate-300'}`} /></div>}
@@ -223,7 +286,12 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
           </div>
         )}
       </div>
-      <ChatComposer input={input} setInput={setInput} send={send} sending={sending} attachedFile={attachedFile} onAttach={() => fileInputRef.current?.click()} onRemoveFile={() => setAttachedFile(null)} dark={dark} />
+      <ChatComposer 
+        input={input} setInput={setInput} send={send} sending={sending} 
+        attachedFile={attachedFile} onAttach={() => fileInputRef.current?.click()} onRemoveFile={() => setAttachedFile(null)} 
+        recording={recording} onStartRecording={startRecording} onStopRecording={stopRecording}
+        dark={dark} 
+      />
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileAttach} />
     </div>
   );
@@ -241,6 +309,11 @@ const ChatComposer = ({ input, setInput, send, sending, attachedFile, onAttach, 
     <div className={`max-w-3xl mx-auto flex items-end gap-2 border rounded-2xl px-4 py-2 ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
       <button type="button" onClick={onAttach} title="Attach file" className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors flex-shrink-0 mb-1 ${dark ? 'text-white/40 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-200'}`}>
         <Paperclip className="w-4 h-4" />
+      </button>
+      <button type="button" onMouseDown={onStartRecording} onMouseUp={onStopRecording} onMouseLeave={onStopRecording}
+        title="Hold to speak" 
+        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 mb-1 ${recording ? 'bg-red-500 text-white animate-pulse' : dark ? 'text-white/40 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-200'}`}>
+        <Mic className="w-4 h-4" />
       </button>
       <textarea
         value={input}
