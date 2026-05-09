@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import api from '../lib/api';
 import { ASSISTANTS } from '../data/assistants';
 import { WingmanFace } from '../components/WingmanLogo';
-import { Plus, MessageSquare, Puzzle, ListChecks, LogOut, Send, Loader2, Trash2, Sparkles, Hammer, CreditCard, Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
+import { Plus, MessageSquare, Puzzle, ListChecks, LogOut, Send, Loader2, Trash2, Sparkles, Hammer, CreditCard, Settings as SettingsIcon, Sun, Moon, Zap } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import PluginsView from '../components/PluginsView';
@@ -16,7 +16,7 @@ import BillingView from '../components/BillingView';
 import PersonasView from '../components/PersonasView';
 
 export default function Dashboard() {
-  const { user, logout, loading } = useAuth();
+  const { user, logout, loading, refreshUser } = useAuth();
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -40,7 +40,13 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { if (user) loadSessions(); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { 
+    if (user) {
+      loadSessions(); 
+      const t = setInterval(refreshUser, 30000);
+      return () => clearInterval(t);
+    }
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const newChat = async () => {
     try {
