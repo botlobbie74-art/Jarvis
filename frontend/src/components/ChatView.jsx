@@ -38,6 +38,7 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
   const [loading, setLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
   const [builderAction, setBuilderAction] = useState(null);
+  const [proactiveAction, setProactiveAction] = useState(null);
   const [recording, setRecording] = useState(false);
   const [magicEdit, setMagicEdit] = useState(false);
   const mediaRecorderRef = useRef(null);
@@ -109,10 +110,9 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
     try {
       const { data } = await api.post('/chat/send', { session_id: sid, message: messageContent, assistant_id: 'jarvis' });
 
-      // Check if the response contains a builder action
-      if (data.builder_action) {
-        setBuilderAction(data.builder_action);
-      }
+      // Check for special actions
+      if (data.builder_action) setBuilderAction(data.builder_action);
+      if (data.metadata?.proactive_action) setProactiveAction(data.metadata.proactive_action);
 
       setMessages((m) => [...m, data]);
       onSessionUpdated?.();
@@ -131,6 +131,19 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
       setBuilderAction(null);
     }
   };
+
+  const executeProactiveAction = async () => {
+    if (!proactiveAction) return;
+    try {
+      await api.post('/chat/approve-proactive', proactiveAction);
+      toast({ title: 'Task Approved', description: proactiveAction.description });
+      setProactiveAction(null);
+    } catch (e) {
+      toast({ title: 'Failed to approve', variant: 'destructive' });
+    }
+  };
+
+  const dismissProactiveAction = () => setProactiveAction(null);
 
   if (!sessionId && messages.length === 0) {
     return (
@@ -265,6 +278,32 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
                 <span className={`w-2 h-2 rounded-full animate-bounce ${dark ? 'bg-white/40' : 'bg-slate-400'}`} style={{ animationDelay: '0ms' }} />
                 <span className={`w-2 h-2 rounded-full animate-bounce ${dark ? 'bg-white/40' : 'bg-slate-400'}`} style={{ animationDelay: '120ms' }} />
                 <span className={`w-2 h-2 rounded-full animate-bounce ${dark ? 'bg-white/40' : 'bg-slate-400'}`} style={{ animationDelay: '240ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Proactive action banner */}
+        {proactiveAction && (
+          <div className="flex justify-start ml-12">
+            <div className={`border rounded-2xl rounded-bl-sm px-5 py-4 text-[13px] max-w-[85%] shadow-2xl transition-all animate-in slide-in-from-left-2 duration-300 ${dark ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                </div>
+                <div>
+                  <span className="font-bold uppercase tracking-tight text-[11px]">Proactive Suggestion</span>
+                  <div className="text-[14px] font-semibold leading-none">Should I proceed with this?</div>
+                </div>
+              </div>
+              <p className={`text-[13px] mb-4 leading-relaxed ${dark ? 'text-white/70' : 'text-slate-600'}`}>{proactiveAction.description}</p>
+              <div className="flex gap-3">
+                <button onClick={executeProactiveAction} className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-white text-[13px] font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-amber-500/20">
+                  Yes, proceed
+                </button>
+                <button onClick={dismissProactiveAction} className={`px-5 py-2 text-[13px] font-medium rounded-xl transition-colors ${dark ? 'bg-white/5 hover:bg-white/10 text-white/60' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>
+                  No, thanks
+                </button>
               </div>
             </div>
           </div>

@@ -89,6 +89,7 @@ export default function CodeAgentView() {
     try {
       await api.delete(`/projects/${pid}?github=${gh}&vercel=${vc}`);
       toast({ title: t('dashboard_delete_project'), description: 'Project removed.' });
+      if (active?.project?.id === pid) setActive(null);
       loadProjects();
       setShowDeleteModal(null);
     } catch (e) {
@@ -205,12 +206,6 @@ export default function CodeAgentView() {
       return;
     }
     window.location.href = `${api.defaults.baseURL}/projects/${active.project.id}/download-zip?token=${localStorage.getItem('jarvis_token')}`;
-  };
-
-  const remove = async (id) => {
-    await api.delete(`/projects/${id}`);
-    if (active?.project?.id === id) setActive(null);
-    loadProjects();
   };
 
   // ============ HOME ============

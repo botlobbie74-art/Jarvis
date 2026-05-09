@@ -299,38 +299,35 @@ def _summarize_project(p: dict) -> str:
         f"  Summary: {plan.get('summary', '')[:150]}"
     )
 
-BUILDER_AWARE_SYSTEM = """You are Jarvis, a highly capable personal AI assistant.
+BUILDER_AWARE_SYSTEM = """You are Jarvis, the world's first 24/7 proactive AI agent. Like "Carlton," you are always on, working for the user even while they sleep.
 
-You have FULL visibility into the user's App Builder projects and connected plugins. You are the relay between the user and the specialized agents (Coder, Task Worker).
+YOUR VISION:
+You are not just a reactive bot. You are a proactive partner aligned with the user's vision. You suggest high-value actions, automate repetitive tasks, and get stuff done overnight so the user wakes up to progress.
 
-YOU MUST USE YOUR TOOLS:
-When the user asks for information that requires web search or external data, you MUST use your connected plugins (e.g., 'Google Search').
-If a tool is connected, use it. Do not just reply, take action.
+PLUGIN CAPABILITIES:
+- Google Workspace: Read/Write Sheets, Manage Docs, Organize Calendar, Search Drive.
+- GitHub: Push code, Create repositories, Manage issues/PRs, Workflow automation.
+- Telegram: 24/7 direct communication channel with the user.
+- YouTube: Fetch video stats (views, likes, comments) and analyze channel performance.
+- Google Search: Real-time web research and fact-finding.
+- Tasks: Background execution and nightly scheduling (e.g., "Run at 01:30 every night").
 
-YOUR ROLE:
-1. PERSONAL ASSISTANT: Help the user with general tasks, questions, and coordination.
-2. RESEARCHER: Never hallucinate facts. For any complex or current topics, use the deep_research agent or research tools to find details before answering.
-3. STATUS REPORTER: When asked about a project, summarize the recent activity.
-4. RELAY TO BUILDER: For development tasks, respond with BUILDER_ACTION: <instruction>.
-5. RELAY TO TASKS: For automations, respond with TASK_ACTION: <description>.
-5. TOOL USE: When using a tool, output your tool-use actions in the format:
-TOOL_ACTION: <name_of_tool> | <instruction/query>
-
-BUILDER INTEGRATION:
-To relay an instruction to the App Builder, output EXACTLY:
-BUILDER_ACTION: <clear instruction for the builder>
-
-TASK INTEGRATION:
-To relay an automation task, output EXACTLY:
-TASK_ACTION: <clear description of the automation task>
+PROACTIVE PROTOCOL (The "Carlton" Way):
+1. ALIGNMENT: Understand the user's broad goals (marketing, building apps, research).
+2. PROPOSAL: Before starting a long-running, scheduled, or proactive task, you MUST ask for permission.
+3. OUTPUT FORMAT: For proactive suggestions, you MUST include this exact marker:
+   PROACTIVE_ACTION: <human description> | <task_type: background|nightly|immediate> | <json_payload>
 
 Example:
-User: "Search for the latest news on AI."
-Jarvis: I'll search that for you right now.
-TOOL_ACTION: Google Search | latest news on AI
+"I noticed you have 200 celebrity combinations to process. I can generate 50 fresh group pictures tonight at 01:30 using Gemini Nano Banana Pro so they are ready when you wake up. Should I do that?"
+PROACTIVE_ACTION: Generate 50 celebrity group pictures tonight at 01:30 | nightly | {"cron": "30 1 * * *", "action": "generate_images", "count": 50, "plugin": "gemini_vision"}
 
-When answering general questions without requiring tools, just reply naturally.
-Always be concise, proactive, and keep the user informed via Telegram about the progress."""
+INTEGRATION FORMATS:
+- TOOL_ACTION: <name> | <query>
+- BUILDER_ACTION: <instruction>
+- TASK_ACTION: <description>
+
+Your personality: Meticulous, proactive, visionary, and tireless. You are Jarvis."""
 
 @api_router.post("/chat/send")
 async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
@@ -354,12 +351,16 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
             sysm += project_ctx
     except Exception: pass
 
-    # Inject connected plugins
+    # Inject connected plugins with detailed capabilities
     try:
-        plugs = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("status", "connected").execute()
-        if plugs.data:
-            names = ", ".join(p["plugin_name"] for p in plugs.data)
-            sysm += f"\n\nUser has these tools connected: {names}."
+        plugs = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("status", "connected").execute().data
+        if plugs:
+            plugin_info = "\n\nCONNECTED PLUGINS & CAPABILITIES:"
+            for p in plugs:
+                pid = p["plugin_id"]
+                desc = next((dp["description"] for dp in DEFAULT_PLUGINS if dp["id"] == pid), "")
+                plugin_info += f"\n- {p['plugin_name']} ({pid}): {desc}. Jarvis has full access."
+            sysm += plugin_info
     except Exception: pass
 
     try:
@@ -389,11 +390,26 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
     # Detect actions in response
     builder_action = None
     task_action = None
+    proactive_action = None
     display_content = reply
+
+    if "PROACTIVE_ACTION:" in reply:
+        try:
+            parts = reply.split("PROACTIVE_ACTION:", 1)[1].strip().split("|")
+            if len(parts) >= 3:
+                proactive_action = {
+                    "description": parts[0].strip(),
+                    "type": parts[1].strip(),
+                    "payload": json.loads(parts[2].strip())
+                }
+                # Remove from display content if it was mixed
+                if "PROACTIVE_ACTION:" in display_content:
+                    display_content = display_content.split("PROACTIVE_ACTION:")[0].strip()
+        except Exception: pass
 
     if "BUILDER_ACTION:" in reply:
         parts = reply.split("BUILDER_ACTION:", 1)
-        display_content = parts[0].strip()
+        if display_content == reply: display_content = parts[0].strip()
         action_text = parts[1].strip().split("\n")[0].strip()
 
         # Determine project
@@ -416,6 +432,7 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
 
     if builder_action: meta["builder_action"] = builder_action
     if task_action: meta["task_action"] = task_action
+    if proactive_action: meta["proactive_action"] = proactive_action
 
     asst = {"id": str(uuid.uuid4()), "session_id": payload.session_id, "role": "assistant",
             "content": reply, "assistant_id": "jarvis", "metadata": meta}
@@ -429,7 +446,30 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
     row["display_content"] = display_content
     if builder_action: row["builder_action"] = builder_action
     if task_action: row["task_action"] = task_action
+    if proactive_action: row["proactive_action"] = proactive_action
     return row
+
+@api_router.post("/chat/approve-proactive")
+async def approve_proactive(payload: Dict[str, Any], user=Depends(get_current_user)):
+    """User approved a proactive action suggested by the AI."""
+    desc = payload.get("description", "Proactive Task")
+    ptype = payload.get("type", "background")
+    data = payload.get("payload", {})
+    
+    tid = str(uuid.uuid4())
+    doc = {
+        "id": tid, "user_id": user["id"], "title": desc,
+        "schedule": data.get("cron") if ptype == "nightly" else None,
+        "status": "active", "metadata": data
+    }
+    sb.table("jarvis_tasks").insert(doc).execute()
+    
+    # If immediate/background, run now
+    if ptype != "nightly":
+        asyncio.create_task(_run_task(tid))
+        
+    return {"ok": True, "task_id": tid}
+
 
 # ============ AUTOMATED DELEGATION ============
 async def delegate_task(uid: str, pid: str, instruction: str):
