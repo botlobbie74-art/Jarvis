@@ -63,6 +63,7 @@ export default function CodeAgentView() {
   const { user, refreshUser } = useAuth();
   const dark = theme === 'dark';
   const isFree = user?.plan === 'free';
+  const ultraMode = user?.plan === 'ultra';
 
   const loadProjects = async () => {
     setLoading(true);
@@ -306,11 +307,12 @@ export default function CodeAgentView() {
             )}
             
             <div className="px-6 pt-5 flex items-center justify-between">
+               <span className={`text-[12px] font-medium ${dark ? 'text-white/30' : 'text-slate-400'}`}>Ctrl+Enter pour générer</span>
                <button 
                 onClick={() => setMarketOpen(true)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all ${dark ? 'bg-white/5 hover:bg-white/10 text-cyan-400' : 'bg-slate-50 hover:bg-slate-100 text-cyan-600'}`}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${dark ? 'bg-white/5 hover:bg-white/10 text-white/50 hover:text-cyan-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-cyan-600'}`}
                >
-                 <Plus className="w-4 h-4" /> Ajouter un Module SaaS
+                 <Plus className="w-3 h-3" /> Modules
                </button>
             </div>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}
@@ -397,11 +399,12 @@ export default function CodeAgentView() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <div className={`font-semibold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{p.name}</div>
-                          <button onClick={() => {
+                          <button onClick={(e) => {
+                            e.stopPropagation();
                             setEditingProject(p);
                             setEditTitle(p.name);
                             setEditDesc(p.description || '');
-                          }} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded transition-opacity">
+                          }} className="p-1 hover:bg-white/10 rounded transition-colors flex-shrink-0">
                             <Pencil className="w-3.5 h-3.5 text-cyan-400" />
                           </button>
                         </div>
