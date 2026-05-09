@@ -6,9 +6,9 @@ import { useTheme } from '../context/ThemeContext';
 
 const PLAN_INFO = {
   free:    { name: 'Free', color: '#64748b' },
-  starter: { name: 'Pro Builder', color: '#06b6d4' },
-  pro:     { name: 'Elite Agent', color: '#8b5cf6' },
-  elite:   { name: 'Elite Agent +', color: '#f59e0b' },
+  starter: { name: 'Starter', color: '#06b6d4' },
+  pro:     { name: 'Pro', color: '#8b5cf6' },
+  ultra:   { name: 'Ultra', color: '#f59e0b' },
 };
 
 export default function BillingView() {
@@ -138,19 +138,19 @@ export default function BillingView() {
           <h2 className={`text-[18px] font-semibold mb-3 ${dark ? 'text-white' : 'text-slate-900'}`}>Monthly Plans</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <UpgradeCard 
-              name="Pro Builder" price="9.99" dark={dark}
-              features={["5,000 monthly credits", "Basic AI Agents", "Standard Support"]} 
-              onClick={() => topup('starter')} // In a real app, this would be a subscription checkout
+              name="Starter" price="9.99" dark={dark}
+              features={["1,000 monthly credits", "Basic AI Agents", "Telegram integration"]} 
+              onClick={() => topup('starter')} 
             />
             <UpgradeCard 
-              name="Elite Agent" price="24.99" dark={dark} highlight
-              features={["15,000 monthly credits", "Ultra-Smart Mode", "Priority Support", "Advanced Custom Personas"]} 
+              name="Pro" price="24.99" dark={dark} highlight
+              features={["2,500 monthly credits", "Unlimited chat", "All plugins (Telegram)", "Priority Support"]} 
               onClick={() => topup('pro')}
             />
             <UpgradeCard 
-              name="Elite Agent +" price="49.99" dark={dark}
-              features={["40,000 monthly credits", "Multimodal Agents", "Direct API Access", "24/7 VIP Support"]} 
-              onClick={() => topup('elite')}
+              name="Ultra" price="49.99" dark={dark}
+              features={["5,000 monthly credits", "Ultra-Smart Mode", "Deep Research access", "24/7 VIP Support"]} 
+              onClick={() => topup('ultra')}
             />
           </div>
         </div>

@@ -5,19 +5,19 @@ import { WingmanFace, WingmanWordmark } from '../components/WingmanLogo';
 
 const PRICING = [
   {
-    id: 'casual', name: 'Casual', price: '9.99', tagline: 'For occasional tasks',
+    id: 'starter', name: 'Starter', price: '9.99', tagline: 'For occasional tasks',
     cta: 'Get started', highlight: false,
-    features: ['1,000 Credits included / month', 'Pay as you go top-ups', 'Google + GitHub plugins', '5 GitHub repo pushes', 'Community support'],
+    features: ['1,000 Credits included / month', 'Pay as you go top-ups', 'Google + GitHub plugins', '5 GitHub repo pushes', 'Telegram integration'],
   },
   {
-    id: 'pro', name: 'Pro Builder', price: '24.99', tagline: 'For solo builders',
+    id: 'pro', name: 'Pro', price: '24.99', tagline: 'For solo builders',
     cta: 'Start building', highlight: true, badge: 'Most popular',
-    features: ['2,500 Credits included / month', 'Unlimited chat', 'All plugins (Telegram + Discord)', 'Unlimited GitHub pushes', 'Priority email support', 'Background tasks'],
+    features: ['2,500 Credits included / month', 'Unlimited chat', 'All plugins (Telegram)', 'Unlimited GitHub pushes', 'Priority email support', 'Background tasks'],
   },
   {
-    id: 'elite', name: 'Elite Agent', price: '49.99', tagline: 'For power users',
-    cta: 'Go Elite', highlight: false,
-    features: ['5,000 Credits included / month', 'Unlimited chat', 'All plugins + custom plugins', 'Multi-seat (5 users)', 'Priority chat support', 'Deep Research access', 'Early access to new features'],
+    id: 'ultra', name: 'Ultra', price: '49.99', tagline: 'For power users',
+    cta: 'Go Ultra', highlight: false,
+    features: ['5,000 Credits included / month', 'Unlimited chat', 'Ultra-Smart Mode', 'Deep Research access', 'Priority chat support', 'Early access to new features'],
   },
 ];
 
@@ -28,23 +28,23 @@ const FEATURES = [
   { icon: Plug, title: 'Connected Google Workspace', desc: 'Reads your Sheets, drafts your Docs, schedules in Calendar, finds files in Drive — with one OAuth click.' },
   { icon: Hammer, title: 'Built-in IDE', desc: 'Real Monaco editor (the engine behind VS Code) lives inside Jarvis. Edit any generated file, save in one click.' },
   { icon: Zap, title: 'Multi-LLM router', desc: 'Routes every task to the best free model — Gemini Flash for planning, Mistral Codestral for code, Groq Llama for chat. Auto-fallback on quota.' },
-  { icon: MessageSquare, title: 'Telegram & Discord bots', desc: 'Message Jarvis directly from Telegram or Discord. Get replies, run tasks, ship code — without opening the app.' },
+  { icon: MessageSquare, title: 'Telegram bot', desc: 'Message Jarvis directly from Telegram. Get replies, run tasks, ship code — without opening the app.' },
   { icon: Code2, title: 'Code shipped to your GitHub', desc: 'Every project gets its own repo on your account. Open the PR, deploy from there, own the code.' },
   { icon: Sparkles, title: '5 specialized assistants', desc: 'Jarvis (tech), Judy (sales), Alfred (exec), Venus (content), Donna (personal) — each with their own brain.' },
 ];
 
 const HOW = [
-  { n: 1, title: 'Describe', desc: 'Tell Jarvis what you want to build, in plain English or French.' },
-  { n: 2, title: 'Plan', desc: 'Jarvis writes a 10-15 step detailed plan you can review.' },
-  { n: 3, title: 'Build', desc: 'Code is generated file by file, saved to Supabase + your IDE.' },
-  { n: 4, title: 'Ship', desc: 'One click pushes the project to a fresh GitHub repo.' },
+  { n: 1, title: 'Concept', desc: 'Share your vision in plain English or French. Jarvis deeply understands complex business logic and intent.', color: 'from-blue-400 to-cyan-400' },
+  { n: 2, title: 'Architect', desc: 'Jarvis generates a multi-phase technical blueprint, architecting every component before writing a single line.', color: 'from-cyan-400 to-emerald-400' },
+  { n: 3, title: 'Execute', desc: 'Our specialized AI agents build your application file-by-file with production-grade code and robust logic.', color: 'from-emerald-400 to-amber-400' },
+  { n: 4, title: 'Deploy', desc: 'One click pushes your full project to a clean GitHub repository, ready for production and scaling.', color: 'from-amber-400 to-fuchsia-400' },
 ];
 
 const FAQ = [
-  { q: 'Do I need to provide my own API keys?', a: 'No. Jarvis runs on a multi-LLM free-tier router. Bring your own keys only if you want.' },
+  { q: 'Do I need to provide my own API keys?', a: 'No. Jarvis runs on our own high-performance infrastructure. You get instant access to the best models without any setup.' },
   { q: 'Where does the generated code live?', a: 'In your own GitHub account. We create the repo, you own it forever.' },
   { q: 'Can Jarvis read my Google Sheets / Docs?', a: 'Yes — connect Google in Plugins. Jarvis can read, write and act on your behalf with OAuth scopes you approve.' },
-  { q: 'How does the Telegram / Discord integration work?', a: 'Connect your account in Plugins, then message @JarvisBot on Telegram or use /jarvis in Discord. Your messages are routed directly to your AI assistant.' },
+  { q: 'How does the Telegram integration work?', a: 'Connect your account in Plugins, then message @JarvisBot on Telegram. Your messages are routed directly to your AI assistant.' },
   { q: 'Cancel anytime?', a: 'Yes. Manage everything from the Stripe customer portal — one click cancel.' },
 ];
 
@@ -64,7 +64,7 @@ export default function MarketingHome() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button onClick={() => navigate('/login')} className="text-[14px] text-slate-700 hover:text-slate-900 px-3 h-9">Sign in</button>
-            <button onClick={() => navigate('/login?signup=1')} className="bg-slate-900 hover:bg-slate-800 text-white text-[14px] h-9 px-4 rounded-full transition-colors">Get started free</button>
+            <button onClick={() => navigate('/login?signup=1')} className="bg-slate-900 hover:bg-slate-800 text-white text-[14px] h-9 px-4 rounded-full transition-colors">Get started</button>
           </div>
         </div>
       </nav>
@@ -74,7 +74,7 @@ export default function MarketingHome() {
         <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-cyan-50/40" />
         <div className="relative max-w-6xl mx-auto px-6 pt-24 pb-20 text-center">
           <div className="inline-flex items-center gap-2 bg-slate-900/5 border border-slate-200 rounded-full px-3 py-1 text-[12px] text-slate-700 mb-6">
-            <Sparkles className="w-3.5 h-3.5" /> Now with multi-LLM free routing
+            <Sparkles className="w-3.5 h-3.5" /> High-performance AI Agents
           </div>
           <h1 className="text-[56px] md:text-[72px] font-bold tracking-tight text-slate-900 leading-[1.05]">
             Your autonomous<br />
@@ -85,15 +85,15 @@ export default function MarketingHome() {
           </p>
           <div className="mt-10 flex items-center justify-center gap-3">
             <button onClick={() => navigate('/login?signup=1')} className="h-12 px-6 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-medium flex items-center gap-2 transition-colors">
-              Start building free <ArrowRight className="w-4 h-4" />
+              Start building <ArrowRight className="w-4 h-4" />
             </button>
             <a href="#how" className="h-12 px-6 rounded-full border border-slate-200 hover:border-slate-300 text-slate-700 font-medium flex items-center transition-colors">
               See how it works
             </a>
           </div>
           <div className="mt-12 flex items-center justify-center gap-8 text-[12px] text-slate-500">
-            <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> No credit card</span>
-            <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> Free tier forever</span>
+            <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> Professional Grade</span>
+            <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> Secure OAuth 2.0</span>
             <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> You own the code</span>
           </div>
         </div>
@@ -127,12 +127,18 @@ export default function MarketingHome() {
             <div className="text-[13px] uppercase tracking-wider text-cyan-600 font-semibold mb-2">How it works</div>
             <h2 className="text-[40px] font-semibold text-slate-900 tracking-tight">From idea to GitHub in 4 steps</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {HOW.map((s) => (
-              <div key={s.n} className="text-left">
-                <div className="w-10 h-10 rounded-full bg-cyan-50 text-cyan-600 font-bold flex items-center justify-center mb-3">{s.n}</div>
-                <div className="text-[17px] font-semibold text-slate-900 mb-1">{s.title}</div>
-                <div className="text-[14px] text-slate-600">{s.desc}</div>
+              <div key={s.n} className="group relative">
+                <div className="absolute -inset-4 bg-slate-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
+                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${s.color} text-white font-bold text-[22px] flex items-center justify-center mb-6 shadow-lg transform group-hover:scale-110 group-hover:-rotate-3 transition-all duration-300`}>
+                  {s.n}
+                </div>
+                <div className="text-[20px] font-bold text-slate-900 mb-2">{s.title}</div>
+                <div className="text-[15px] text-slate-600 leading-relaxed">{s.desc}</div>
+                {s.n < 4 && (
+                  <div className="hidden md:block absolute top-7 left-[calc(100%+16px)] w-[calc(100%-48px)] h-px bg-slate-100" />
+                )}
               </div>
             ))}
           </div>
@@ -145,7 +151,7 @@ export default function MarketingHome() {
           <div className="text-center mb-14">
             <div className="text-[13px] uppercase tracking-wider text-cyan-600 font-semibold mb-2">Pricing</div>
             <h2 className="text-[40px] font-semibold text-slate-900 tracking-tight">Simple, fair, no surprises</h2>
-            <p className="text-slate-600 mt-2 text-[15px]">Start free. Upgrade when you ship more.</p>
+            <p className="text-slate-600 mt-2 text-[15px]">Choose the plan that fits your pace. Upgrade as you grow.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {PRICING.map((p) => (
@@ -210,7 +216,7 @@ export default function MarketingHome() {
           <h2 className="text-[44px] font-semibold tracking-tight">Ready to ship faster?</h2>
           <p className="text-slate-300 mt-3 text-[16px]">Join the builders who let Jarvis do the heavy lifting.</p>
           <button onClick={() => navigate('/login?signup=1')} className="mt-8 h-12 px-6 rounded-full bg-white hover:bg-slate-100 text-slate-900 font-medium inline-flex items-center gap-2 transition-colors">
-            Start building free <ArrowRight className="w-4 h-4" />
+            Start building <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </section>
