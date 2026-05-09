@@ -38,6 +38,7 @@ export default function CodeAgentView() {
   const [showRepoMenu, setShowRepoMenu] = useState(false);
   const [autoBuild, setAutoBuild] = useState(true);
   const [ultraMode, setUltraMode] = useState(false);
+  const [view, setView] = useState('preview'); // 'preview' or 'code'
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
   const { toast } = useToast();
@@ -315,8 +316,9 @@ export default function CodeAgentView() {
         </button>
 
         <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/5 p-1 rounded-xl">
-          <button onClick={() => setView('chat')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'chat' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Preview</button>
-          <button onClick={downloadZip} className="h-8 px-3 rounded-lg text-[12px] font-semibold text-slate-500 hover:text-slate-700 transition-all flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />Code</button>
+          <button onClick={() => setView('preview')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'preview' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Preview</button>
+          <button onClick={() => setView('code')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'code' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Code</button>
+          <button onClick={downloadZip} className="h-8 px-3 rounded-lg text-[12px] font-semibold text-slate-500 hover:text-slate-700 transition-all flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />ZIP</button>
           <button onClick={pushGithub} disabled={pushing} className="h-8 px-4 rounded-lg text-[12px] font-bold bg-slate-900 dark:bg-white text-white dark:text-black hover:opacity-90 transition-all flex items-center gap-1.5">
             {pushing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />}
             Deploy

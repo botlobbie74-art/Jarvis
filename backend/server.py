@@ -1602,7 +1602,18 @@ async def reset_persona(assistant_id: str, user=Depends(get_current_user)):
 
 # ============ APP ============
 app.include_router(api_router)
-app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://jarvisagent.app",
+        "https://www.jarvisagent.app"
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 @api_router.post("/voice/transcribe")
 async def voice_transcribe(audio: UploadFile = File(...), user=Depends(get_current_user)):
