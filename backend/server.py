@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from services.telegram_service import handle_telegram_intent, send_telegram_notification
-from config.agent_models_config import AGENT_MODELS
+from config.agent_models_config import AGENT_MODELS, PERSONAL_AGENT_COSTS
 import re
 import asyncio
 import os, logging, uuid, json, asyncio, io, zipfile
@@ -18,11 +18,9 @@ from passlib.context import CryptContext
 from supabase import create_client, Client
 from github import Github, GithubException
 from llm_router import llm_call as router_call
-import stripe, httpx
-try:
-    from chief_config import CHIEF_OF_STAFF_COSTS
-except ImportError:
-    CHIEF_OF_STAFF_COSTS = {}
+from intelligent_router import call_with_fallback
+import stripe, httpx, random, string
+from datetime import datetime, timezone
 try:
     from skills.youtube_reply import generate_replies as youtube_skill_generate_replies
 except ImportError:
@@ -133,6 +131,41 @@ async def _append_completion_message(user_id: str, description: str, content: st
     except Exception as e:
         log.warning("Failed to append completion suggestions message: %s", e)
 
+# --- PUBLIC ACTIVITY LOGGER ---
+def log_public_activity(event_type: str, metadata: dict = None):
+    """Logs anonymized activity for the public social proof page."""
+    try:
+        sb.table("public_activity").insert({
+            "event_type": event_type,
+            "metadata": metadata or {}
+        }).execute()
+    except Exception as e:
+        log.error(f"Failed to log public activity: {e}")
+
+# --- DNA ENGINE: USER PERSONALIZATION ---
+async def update_user_dna(uid: str, instruction: str, response_content: str):
+    """Analyzes interactions to update the user's permanent DNA profile."""
+    try:
+        user_res = sb.table("jarvis_users").select("dna_profile").eq("id", uid).single().execute()
+        dna = user_res.data.get("dna_profile") or {} if user_res.data else {}
+        
+        analysis_prompt = f"""Analyze this interaction to extract user preferences, tech stack, and communication style.
+User Instruction: {instruction}
+Jarvis Response: {response_content[:1000]}
+Current DNA: {json.dumps(dna)}
+
+Return ONLY a JSON object representing the updated DNA.
+"""
+        from llm_router import llm_call
+        res = await llm_call("worker", "DNA Analyzer", analysis_prompt, manual_model="llama-3.3-70b-versatile")
+        new_dna = json.loads(res["content"].strip().strip("```json").strip("```"))
+        sb.table("jarvis_users").update({"dna_profile": new_dna}).eq("id", uid).execute()
+    except Exception as e:
+        log.error(f"DNA update failed: {e}")
+
+def generate_referral_code():
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+
 @app.get("/")
 @app.get("/health")
 @app.get("/api")
@@ -141,11 +174,11 @@ async def health_check():
 
 # ============ MODELS ============
 class UserSignup(BaseModel):
-    email: EmailStr; password: str; name: str
+    email: EmailStr; password: str; name: str; referral_code: Optional[str] = None
 class UserLogin(BaseModel):
     email: EmailStr; password: str
 class UserOut(BaseModel):
-    id: str; email: str; name: str; created_at: str; credits: float = 0.0; plan: str = "free"
+    id: str; email: str; name: str; created_at: str; credits: float = 0.0; plan: str = "free"; referral_code: Optional[str] = None; morning_brief_enabled: bool = False
 class TokenResponse(BaseModel):
     access_token: str; token_type: str = "bearer"; user: UserOut
 
@@ -250,7 +283,9 @@ def _consume_credits_v2(uid: str, model: str, tier: str, usage: dict, descriptio
     user_cost_credits = 0.1 # Safety Floor
     
     # Tier 1: Fixed cost from AGENT_MODELS if applicable
-    if task_role and task_role in AGENT_MODELS:
+    if task_role and task_role in PERSONAL_AGENT_COSTS:
+        user_cost_credits = PERSONAL_AGENT_COSTS[task_role].get("credits", 0.1)
+    elif task_role and task_role in AGENT_MODELS:
         user_cost_credits = AGENT_MODELS[task_role].get("credits", 0.1)
     else:
         # Tier 2: Dynamic calculation based on API price + Margin
@@ -293,10 +328,33 @@ async def signup(payload: UserSignup):
     existing = sb.table("jarvis_users").select("id").eq("email", email).execute()
     if existing.data:
         raise HTTPException(status_code=400, detail="Email already registered")
+    
     uid = str(uuid.uuid4())
-    doc = {"id": uid, "email": email, "name": payload.name, "password_hash": hash_password(payload.password)}
+    ref_code = generate_referral_code()
+    
+    referred_by = None
+    if payload.referral_code:
+        referrer = sb.table("jarvis_users").select("id").eq("referral_code", payload.referral_code).execute()
+        if referrer.data:
+            referred_by = referrer.data[0]["id"]
+            # Award referrer 200 credits
+            _update_credits(referred_by, 200, f"Referral bonus for {email}")
+            log_public_activity("referral_joined", {"user_id": uid})
+
+    doc = {
+        "id": uid, 
+        "email": email, 
+        "name": payload.name, 
+        "password_hash": hash_password(payload.password),
+        "referral_code": ref_code,
+        "referred_by": referred_by,
+        "credits": 100.0 if referred_by else 50.0 # Extra initial credits for referred users
+    }
     sb.table("jarvis_users").insert(doc).execute()
     user = sb.table("jarvis_users").select("*").eq("id", uid).single().execute().data
+    
+    log_public_activity("new_user_joined", {"uid": uid})
+    
     return TokenResponse(access_token=create_token(uid),
                          user=UserOut(id=user["id"], email=user["email"], name=user["name"], created_at=user["created_at"]))
 
@@ -315,7 +373,9 @@ async def me(user=Depends(get_current_user)):
     return UserOut(
         id=user["id"], email=user["email"], name=user.get("name") or "", 
         credits=user.get("credits", 0.0), plan=plan_data.get("plan", "free"),
-        created_at=user["created_at"]
+        created_at=user["created_at"],
+        referral_code=user.get("referral_code"),
+        morning_brief_enabled=user.get("morning_brief_enabled", False)
     )
 
 @api_router.delete("/auth/delete-account")
@@ -661,7 +721,11 @@ async def approve_proactive(payload: Dict[str, Any], user=Depends(get_current_us
 async def delegate_task(uid: str, pid: str, instruction: str):
     # Ask CEO agent to determine the best specialist for this task
     prompt = f"User wants: {instruction}\n\nAnalyze this request and determine which of these agents is best suited to execute it: Architect, Backend, Frontend, Infra, Security, Refactor, UX, Research, User_Sim, QA_Test, Bug_Hunter, Performance, Exploit.\n\nReturn ONLY the name of the agent type."
-    res = await router_call("ceo", "You are the CEO Agent. Act as a dispatcher.", prompt, sb=sb)
+    user_data = sb.table("jarvis_users").select("credits", "tier", "dna_profile").eq("id", uid).execute().data
+    u_credits = user_data[0].get("credits", 50) if user_data else 50
+    u_tier = user_data[0].get("tier", "free") if user_data else "free"
+    u_dna = user_data[0].get("dna_profile", {}) if user_data else {}
+    res = await call_with_fallback("strategy_decision", "ceo", "You are the CEO Agent. Act as a dispatcher.", prompt, sb=sb, user_credits=u_credits, user_tier=u_tier, dna=u_dna)
     agent_type = res["content"].strip().lower()
 
     # Enqueue a job for this agent
@@ -1535,7 +1599,11 @@ async def _run_job(job_id: str):
 
         # Execute based on agent type
         if agent == "planner":
-            res = await router_call(role, sysm, f"Plan: {proj.get('description','')}", sb=sb, thinking_mode="deep" if is_ultra else "normal")
+            user_data = sb.table("jarvis_users").select("credits", "tier", "dna_profile").eq("id", uid).execute().data
+            u_credits = user_data[0].get("credits", 50) if user_data else 50
+            u_tier = user_data[0].get("tier", "free") if user_data else "free"
+            u_dna = user_data[0].get("dna_profile", {}) if user_data else {}
+            res = await call_with_fallback("research", role, sysm, f"Plan: {proj.get('description','')}", sb, u_credits, u_tier, thinking_mode="deep" if is_ultra else "normal", dna=u_dna)
             sb.table("jarvis_project_state").upsert({"project_id": j["project_id"], "current_phase": "coding",
                                                      "last_summary": res["content"][:500],
                                                      "updated_at": datetime.now(timezone.utc).isoformat()}).execute()
@@ -1544,7 +1612,12 @@ async def _run_job(job_id: str):
             if agent == "bug_hunter" and not j["payload"].get("path"):
                 path = "src/App.jsx" # default fix target
             purpose = j["payload"].get("purpose", "")
-            res = await router_call(role, sysm, f"File: {path}\nPurpose: {purpose}\nInstruction: {j['payload'].get('instruction','')}\nProject: {proj.get('description','')}", sb=sb, thinking_mode="deep" if (is_ultra or agent == "bug_hunter") else "normal")
+            user_data = sb.table("jarvis_users").select("credits", "tier", "dna_profile").eq("id", uid).execute().data
+            u_credits = user_data[0].get("credits", 50) if user_data else 50
+            u_tier = user_data[0].get("tier", "free") if user_data else "free"
+            u_dna = user_data[0].get("dna_profile", {}) if user_data else {}
+            task_type = "architecture" if agent == "architect" else "code_generation"
+            res = await call_with_fallback(task_type, role, sysm, f"File: {path}\nPurpose: {purpose}\nInstruction: {j['payload'].get('instruction','')}\nProject: {proj.get('description','')}", sb, u_credits, u_tier, thinking_mode="deep" if (is_ultra or agent == "bug_hunter") else "normal", dna=u_dna)
             content = res["content"].strip()
             if content.startswith("```"):
                 lines = content.split("\n"); content = "\n".join(lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:])
@@ -1555,13 +1628,24 @@ async def _run_job(job_id: str):
                 sb.table("jarvis_project_files").insert({"id": str(uuid.uuid4()), "project_id": j["project_id"], "path": path, "content": content, "language": "plaintext"}).execute()
             res["actions"] = [{"action": "processed", "path": path}]
         else:
-            res = await router_call(role, sysm, j["payload"].get("instruction", f"Task for {agent}"), sb=sb, thinking_mode="deep" if is_ultra else "normal")
+            user_data = sb.table("jarvis_users").select("credits", "tier", "dna_profile").eq("id", uid).execute().data
+            u_credits = user_data[0].get("credits", 50) if user_data else 50
+            u_tier = user_data[0].get("tier", "free") if user_data else "free"
+            u_dna = user_data[0].get("dna_profile", {}) if user_data else {}
+            task_type = "test_generation" if agent in ("tester", "qa_test", "verification") else "code_generation"
+            res = await call_with_fallback(task_type, role, sysm, j["payload"].get("instruction", f"Task for {agent}"), sb, u_credits, u_tier, thinking_mode="deep" if is_ultra else "normal", dna=u_dna)
 
         # Consume credits (High-Margin)
         cost = _consume_credits_v2(
             uid, res.get("model"), res.get("tier"), res.get("usage", {}),
             f"Agent Job: {agent}"
         )
+        
+        # Log to public activity
+        log_public_activity(f"{agent}_task_completed", {"project_id": j["project_id"]})
+        
+        # Update DNA Engine (Long-term Memory)
+        asyncio.create_task(update_user_dna(uid, j["payload"].get("instruction", ""), res["content"]))
 
         sb.table("jarvis_agent_jobs").update({
             "status": "done", 
@@ -1872,7 +1956,10 @@ async def telegram_webhook(payload: dict):
             ctx = "".join(f"\n{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in prior)
             full = (ctx + f"\nUser: {text}").strip() if ctx else text
             
-            res = await router_call("chat", sysm + "\n\nUser is messaging via Telegram. Keep replies relatively concise.", full, sb=sb)
+            u_credits = user.get("credits", 50)
+            u_tier = user.get("tier", "free")
+            u_dna = user.get("dna_profile", {})
+            res = await call_with_fallback("telegram_intent", "chat", sysm + "\n\nUser is messaging via Telegram. Keep replies relatively concise.", full, sb, u_credits, u_tier, dna=u_dna)
             reply = res["content"]
         except Exception as e:
             log.exception("telegram chat err")
@@ -2492,10 +2579,29 @@ class YouTubeReplyRequest(BaseModel):
     video_id: str
     user_style: str
 
-@api_router.post("/skills/youtube-reply")
-async def skill_youtube_reply(req: YouTubeReplyRequest, user=Depends(get_current_user)):
-    """Module 4: Intégration smartermax.app"""
-    if not youtube_skill_generate_replies:
-        raise HTTPException(500, "Skill non disponible")
-    replies = await youtube_skill_generate_replies(req.channel_id, req.video_id, req.user_style)
-    return {"replies": replies}
+@api_router.get("/activity")
+async def get_activity():
+    """Returns recent anonymized public activity."""
+    try:
+        res = sb.table("public_activity").select("*").order("created_at", desc=True).limit(20).execute()
+        return res.data
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+class MorningBriefToggle(BaseModel):
+    enabled: bool
+
+@api_router.post("/auth/morning-brief")
+async def toggle_morning_brief(payload: MorningBriefToggle, user=Depends(get_current_user)):
+    """Toggles daily morning briefing."""
+    sb.table("jarvis_users").update({"morning_brief_enabled": payload.enabled}).eq("id", user["id"]).execute()
+    return {"ok": True, "enabled": payload.enabled}
+
+@app.on_event("startup")
+async def startup_event():
+    from services.morning_brief import morning_brief_daemon
+    asyncio.create_task(morning_brief_daemon(sb))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

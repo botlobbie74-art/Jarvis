@@ -56,7 +56,6 @@ PROVIDERS = [
     {"id": "gemini", "endpoint": "https://generativelanguage.googleapis.com", "key_env": "GEMINI_API_KEY"},
     {"id": "anthropic", "endpoint": "https://api.anthropic.com/v1/messages", "key_env": "ANTHROPIC_API_KEY"},
     {"id": "openai", "endpoint": "https://api.openai.com/v1/chat/completions", "key_env": "OPENAI_API_KEY"},
-    {"id": "cerebras", "endpoint": "https://api.cerebras.ai/v1/chat/completions", "key_env": "CEREBRAS_API_KEY"},
     {"id": "groq", "endpoint": "https://api.groq.com/openai/v1/chat/completions", "key_env": "GROQ_API_KEY"},
     {"id": "mistral", "endpoint": "https://api.mistral.ai/v1/chat/completions", "key_env": "MISTRAL_API_KEY"},
     {"id": "openrouter", "endpoint": "https://openrouter.ai/api/v1/chat/completions", "key_env": "OPENROUTER_API_KEY"},
@@ -181,12 +180,13 @@ def route_model(analysis: Dict[str, Any], task_role: str = "coder", thinking_mod
 
 # --- 5. EXECUTION ENGINE ---
 
-async def llm_call(role: str, system: str, user: str, sb=None, thinking_mode: str = "normal", manual_model: str = None) -> dict:
+async def llm_call(role: str, system: str, user: str, sb=None, thinking_mode: str = "normal", manual_model: str = None, dna: dict = None) -> dict:
     t0 = time.time()
     
-    # Inject thinking mode instruction
+    # Inject thinking mode & DNA instructions
     thinking_instruction = THINKING_PROMPTS.get(thinking_mode, THINKING_PROMPTS["normal"])
-    full_system = f"{system}\n\n[INSTRUCTION]\n{thinking_instruction}"
+    dna_instruction = f"\n\n[USER DNA / MEMORY]\n{json.dumps(dna)}" if dna else ""
+    full_system = f"{system}\n\n[INSTRUCTION]\n{thinking_instruction}{dna_instruction}"
     
     # Step 1: Analysis (unless manual)
     if manual_model:
@@ -209,8 +209,8 @@ async def llm_call(role: str, system: str, user: str, sb=None, thinking_mode: st
     elif "gpt" in model_name: 
         provider = "openai"
     elif "llama" in model_name: 
-        # Favor Cerebras/Groq for Llama models
-        provider = "cerebras" if _get_provider("cerebras") else "groq"
+        # Favor Groq for Llama models
+        provider = "groq"
     elif "codestral" in model_name: 
         provider = "mistral"
     elif "command" in model_name: 

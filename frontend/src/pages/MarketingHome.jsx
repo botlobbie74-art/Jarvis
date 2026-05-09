@@ -3,27 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Check, Sparkles, ArrowRight, Zap, Code2, Plug, Github, MessageSquare, Calendar, Hammer, Bot, Globe } from 'lucide-react';
 import { JarvisFace, JarvisWordmark } from '../components/JarvisLogo';
 import { t } from '../lib/i18n';
+import { PLANS } from '../data/plans';
 
 export default function MarketingHome() {
   const navigate = useNavigate();
 
-  const PRICING = [
-    {
-      id: 'starter', name: 'Starter', price: '9.99', tagline: t('pricing_starter_tag'),
-      cta: t('hero_start'), highlight: false,
-      features: [t('pricing_starter_f1'), t('pricing_starter_f2'), t('pricing_starter_f3'), t('pricing_starter_f4'), t('pricing_starter_f5')],
-    },
-    {
-      id: 'pro', name: 'Pro', price: '24.99', tagline: t('pricing_pro_tag'),
-      cta: t('pricing_pro_cta'), highlight: true, badge: t('pricing_popular'),
-      features: [t('pricing_pro_f1'), t('pricing_pro_f2'), t('pricing_pro_f3'), t('pricing_pro_f4'), t('pricing_pro_f5'), t('pricing_pro_f6')],
-    },
-    {
-      id: 'ultra', name: 'Ultra', price: '49.99', tagline: t('pricing_ultra_tag'),
-      cta: t('pricing_ultra_cta'), highlight: false,
-      features: [t('pricing_ultra_f1'), t('pricing_ultra_f2'), t('pricing_ultra_f3'), t('pricing_ultra_f4'), t('pricing_ultra_f5'), t('pricing_ultra_f6')],
-    },
-  ];
+  const PRICING = PLANS;
 
   const INTEGRATIONS = [
     { title: "Google Workspace", desc: "Gmail, Drive, Sheets, Docs, Calendar", icon: '📧' },
@@ -59,6 +44,7 @@ export default function MarketingHome() {
             <a href="#how" className="hover:text-white transition-colors">{t('nav_how')}</a>
             <button onClick={() => navigate('/pricing')} className="hover:text-white transition-colors">{t('nav_pricing')}</button>
             <a href="#faq" className="hover:text-white transition-colors">{t('nav_faq')}</a>
+            <button onClick={() => navigate('/activity')} className="hover:text-white transition-colors">Activité</button>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button onClick={() => navigate('/login')} className="text-[14px] text-white/70 hover:text-white px-3 h-9 transition-colors">Connexion</button>
@@ -261,7 +247,7 @@ export default function MarketingHome() {
                     <div className="h-1 bg-slate-900 rounded-full overflow-hidden">
                       <div className="w-full h-full bg-emerald-500"></div>
                     </div>
-                    <p className="text-[12px] text-[#8888a0]">Jarvis processed 24 tasks while you were away.</p>
+                    <p className="text-[12px] text-[#8888a0]">Jarvis a exécuté 24 tâches pendant votre absence.</p>
                     <div className="flex gap-2">
                       <div className="w-8 h-8 rounded-lg bg-indigo-900/20 flex items-center justify-center"><MessageSquare size={14} className="text-indigo-400" /></div>
                       <div className="w-8 h-8 rounded-lg bg-emerald-900/20 flex items-center justify-center"><Check size={14} className="text-emerald-400" /></div>
@@ -328,33 +314,45 @@ export default function MarketingHome() {
             <h2 className="text-[40px] font-semibold text-white tracking-tight">{t('pricing_title')}</h2>
             <p className="text-[#8888a0] mt-2 text-[15px]">{t('pricing_subtitle')}</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {PRICING.map((p) => (
-              <div key={p.id} className={`relative rounded-2xl p-7 border ${
-                p.highlight ? 'bg-white text-[#0a0a0f] border-white shadow-2xl md:scale-[1.02]' : 'bg-[#12121a] border-white/10'
+              <div key={p.id} className={`relative rounded-2xl p-7 border flex flex-col ${
+                p.popular ? 'bg-[#12121a] border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.15)] md:scale-[1.02] z-10' : 'bg-[#12121a] border-white/10'
               }`}>
-                {p.badge && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-cyan-500 text-white text-[11px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">{p.badge}</div>
+                {p.popular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-cyan-500 to-indigo-500 text-white text-[11px] font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-lg">
+                    {p.popularLabel}
+                  </div>
                 )}
-                <div className={`text-[14px] font-semibold ${p.highlight ? 'text-cyan-700' : 'text-cyan-400'}`}>{p.name}</div>
-                <div className="mt-2 flex items-baseline gap-1">
-                  <span className="text-[44px] font-bold tracking-tight">${p.price}</span>
-                  <span className={p.highlight ? 'text-slate-500' : 'text-[#8888a0]'}>/mo</span>
+                <div className={`text-[18px] font-black ${p.popular ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400' : 'text-white'}`}>{p.name}</div>
+                <div className="mt-4 flex items-baseline gap-1">
+                  {p.price > 0 ? <span className="text-[44px] font-bold tracking-tight text-white">€{p.price}</span> : <span className="text-[44px] font-bold tracking-tight text-white">0€</span>}
+                  <span className="text-[#8888a0] font-medium">{p.period}</span>
                 </div>
-                <div className={`text-[14px] mb-6 ${p.highlight ? 'text-slate-600' : 'text-[#8888a0]'}`}>{p.tagline}</div>
+                
+                <div className="mt-6 mb-6">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <span className="text-white font-bold text-[16px]">{p.credits.toLocaleString()}</span>
+                  </div>
+                  <div className="text-[12px] text-slate-500">{p.credits_label}</div>
+                </div>
+
                 <button
                   onClick={() => navigate(p.id === 'free' ? '/login?signup=1' : `/login?signup=1&plan=${p.id}`)}
-                  className={`w-full h-11 rounded-full font-medium transition-colors mb-6 ${
-                    p.highlight ? 'bg-[#0a0a0f] text-white hover:bg-black' : 'bg-[#0a0a0f] text-white hover:bg-white/10 border border-white/10'
+                  className={`w-full h-12 rounded-2xl font-bold transition-all mb-8 flex-shrink-0 ${
+                    p.popular 
+                      ? 'bg-gradient-to-r from-cyan-500 to-indigo-500 text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-[1.02]' 
+                      : 'bg-white/5 text-white hover:bg-white/10 border border-white/10'
                   }`}
                 >
-                  {p.cta}
+                  {p.buttonText}
                 </button>
-                <ul className="space-y-2.5">
-                  {p.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-[14px]">
-                      <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${p.highlight ? 'text-cyan-700' : 'text-emerald-500'}`} />
-                      <span className={p.highlight ? 'text-[#0a0a0f]' : 'text-slate-300'}>{f}</span>
+                <ul className="space-y-4 flex-1">
+                  {p.features.map((f, idx) => (
+                    <li key={idx} className="flex items-start gap-3 text-[14px]">
+                      <Check className={`w-5 h-5 flex-shrink-0 ${p.popular ? 'text-cyan-400' : 'text-emerald-500'}`} />
+                      <span className="text-slate-300 leading-snug">{f}</span>
                     </li>
                   ))}
                 </ul>
@@ -400,7 +398,10 @@ export default function MarketingHome() {
       <footer className="py-10 border-t border-white/5 bg-[#0a0a0f]">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between text-[12px] text-[#8888a0]">
           <div className="flex items-center gap-2"><JarvisFace size={20} /><span className="font-semibold text-white">Jarvis</span><span>· Autonomous AI</span></div>
-          <div>&copy; {new Date().getFullYear()} Jarvis Agent. All rights reserved.</div>
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate('/activity')} className="hover:text-white transition-colors">Live Activity</button>
+            <div>&copy; {new Date().getFullYear()} Jarvis Agent. All rights reserved.</div>
+          </div>
         </div>
       </footer>
     </div>

@@ -5,7 +5,7 @@ CHIEF_OF_STAFF_COSTS = {
   "google_sheets_write":   3,   # Google Sheets API
   "site_analytics_fetch":  2,   # Analytics API
 
-  # TIER WORKER — gemini-1.5-flash / llama via Cerebras
+  # TIER WORKER — gemini-1.5-flash / llama via Groq
   "mission_parse":         3,   # Parser le message initial
   "youtube_stats_fetch":   5,   # Lire + formater les stats YouTube
   "youtube_comments_analyze": 8, # Analyser N commentaires

@@ -248,19 +248,19 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
           <BotAvatar size={36} dark={dark} />
           <div>
             <div className={`text-[15px] font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Jarvis</div>
-            <div className="text-[12px] text-[#22a3ff]">Your autonomous AI engineer</div>
+            <div className="text-[12px] text-[#22a3ff]">Votre ingénieur IA autonome</div>
           </div>
         </header>
         <div className="flex-1 flex flex-col items-center justify-center px-8">
           <BotAvatar size={90} dark={dark} />
-          <h2 className={`mt-6 text-[28px] font-semibold text-center ${dark ? 'text-white' : 'text-slate-900'}`}>What can I do for you today?</h2>
-          <p className={`mt-2 text-center max-w-sm ${dark ? 'text-white/40' : 'text-slate-500'}`}>Ask me anything — I can build apps, fetch your YouTube stats, create Google Sheets, or manage your plugins.</p>
+          <h2 className={`mt-6 text-[28px] font-semibold text-center ${dark ? 'text-white' : 'text-slate-900'}`}>Que puis-je faire pour vous aujourd'hui ?</h2>
+          <p className={`mt-2 text-center max-w-sm ${dark ? 'text-white/40' : 'text-slate-500'}`}>Posez-moi n'importe quelle question — je peux créer des apps, consulter vos stats YouTube, créer des Google Sheets ou gérer vos plugins.</p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             {[
-              "Where is my project at?",
-              "Build me a todo app",
-              "Explain my latest project",
-              "Add a feature to my app",
+              "Où en est mon projet ?",
+              "Crée-moi une app todo",
+              "Explique mon dernier projet",
+              "Ajoute une fonctionnalité",
             ].map((s) => (
               <button 
                 key={s} 
@@ -325,7 +325,7 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
         <BotAvatar size={32} dark={dark} />
         <div className="flex-1">
           <div className={`text-[15px] font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Jarvis</div>
-          <div className="text-[12px] text-[#22a3ff]">Your personal AI agent</div>
+          <div className="text-[12px] text-[#22a3ff]">Votre agent IA personnel</div>
         </div>
         <button onClick={toggleMagicEdit} className={`h-8 px-3 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${magicEdit ? 'bg-cyan-500 text-white shadow-lg' : dark ? 'bg-white/5 text-white/40' : 'bg-slate-100 text-slate-500'}`}>
           <MousePointer2 className="w-3.5 h-3.5" />
@@ -383,7 +383,7 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
                             </div>
                             <div className="text-[13px] font-medium truncate">{mis.preview || 'En attente...'}</div>
                           </div>
-                          {mis.status === 'done' && <div className="text-[10px] font-bold text-emerald-500 px-2 py-0.5 rounded-full bg-emerald-500/10 uppercase">COMPLETED</div>}
+                          {mis.status === 'done' && <div className="text-[10px] font-bold text-emerald-500 px-2 py-0.5 rounded-full bg-emerald-500/10 uppercase">TERMINÉ</div>}
                         </div>
                       ))}
                     </div>
@@ -435,17 +435,17 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
                   <Zap className="w-4 h-4 text-amber-500" />
                 </div>
                 <div>
-                  <span className="font-bold uppercase tracking-tight text-[11px]">Proactive Suggestion</span>
-                  <div className="text-[14px] font-semibold leading-none">Should I proceed with this?</div>
+                  <span className="font-bold uppercase tracking-tight text-[11px]">Suggestion Proactive</span>
+                  <div className="text-[14px] font-semibold leading-none">Dois-je continuer ?</div>
                 </div>
               </div>
               <p className={`text-[13px] mb-4 leading-relaxed ${dark ? 'text-white/70' : 'text-slate-600'}`}>{proactiveAction.description}</p>
               <div className="flex gap-3">
                 <button onClick={executeProactiveAction} className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-white text-[13px] font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-amber-500/20">
-                  Yes, proceed
+                  Oui, continuer
                 </button>
                 <button onClick={dismissProactiveAction} className={`px-5 py-2 text-[13px] font-medium rounded-xl transition-colors ${dark ? 'bg-white/5 hover:bg-white/10 text-white/60' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>
-                  No, thanks
+                  Non, merci
                 </button>
               </div>
             </div>
@@ -462,16 +462,16 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
                 </div>
                 <div>
                   <span className="font-bold uppercase tracking-tight text-[11px]">Jarvis Builder</span>
-                  <div className="text-[14px] font-semibold leading-none">Builder intervention required</div>
+                  <div className="text-[14px] font-semibold leading-none">Intervention du Builder requise</div>
                 </div>
               </div>
               <p className={`text-[13px] mb-4 leading-relaxed ${dark ? 'text-white/70' : 'text-slate-600'}`}>{builderAction.description}</p>
               <div className="flex gap-3">
                 <button onClick={executeBuilderAction} className="px-5 py-2 bg-cyan-500 hover:bg-cyan-400 text-white text-[13px] font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-cyan-500/20">
-                  Initialize Builder
+                  Initialiser le Builder
                 </button>
                 <button onClick={dismissBuilderAction} className={`px-5 py-2 text-[13px] font-medium rounded-xl transition-colors ${dark ? 'bg-white/5 hover:bg-white/10 text-white/60' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>
-                  Decline
+                  Refuser
                 </button>
               </div>
             </div>
@@ -504,13 +504,13 @@ const ChatComposer = ({
     <form onSubmit={send} className={`p-4 border-t ${dark ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white'}`}>
       {isOutOfCredits && (
         <div className="max-w-3xl mx-auto mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center animate-pulse">
-          <p className="text-[14px] font-bold text-amber-500 mb-3">{t('dashboard_out_of_credits')}</p>
+          <p className="text-[14px] font-bold text-amber-500 mb-3">Plus de crédits disponibles</p>
           <button 
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('open-billing'))}
             className="px-6 h-9 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-black font-bold text-[13px] shadow-[0_0_20px_rgba(245,158,11,0.4)] hover:scale-105 transition-transform"
           >
-            {t('dashboard_refill')}
+            Recharger des crédits
           </button>
         </div>
       )}
@@ -554,7 +554,7 @@ const ChatComposer = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e); } }}
-            placeholder={isOutOfCredits ? t('dashboard_out_of_credits') : "What's the next directive?"}
+            placeholder={isOutOfCredits ? "Plus de crédits" : "Quelle est la prochaine directive ?"}
             disabled={isOutOfCredits}
             rows={1}
             className={`flex-1 bg-transparent outline-none resize-none text-[15px] font-medium py-2 max-h-40 ${dark ? 'text-white placeholder:text-white/20' : 'text-slate-800 placeholder:text-slate-400'}`}

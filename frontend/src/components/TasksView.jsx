@@ -30,10 +30,10 @@ export default function TasksView() {
     try {
       await api.post('/tasks', { title, schedule, plugins: [] });
       setTitle(''); setSchedule('');
-      toast({ title: 'Task created', description: 'Jarvis will run it in the background.' });
+      toast({ title: 'Tâche créée', description: 'Jarvis s\'en occupera en arrière-plan.' });
       load();
     } catch (err) {
-      toast({ title: 'Failed to create', variant: 'destructive' });
+      toast({ title: 'Erreur lors de la création', variant: 'destructive' });
     }
   };
 
@@ -47,22 +47,22 @@ export default function TasksView() {
       <div className="max-w-3xl mx-auto px-8 py-10">
         <div className="flex items-center gap-3 mb-1">
           <ListChecks className={`w-6 h-6 ${dark ? 'text-white' : 'text-slate-900'}`} />
-          <h1 className={`text-[28px] font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Background tasks</h1>
+          <h1 className={`text-[28px] font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Tâches planifiées</h1>
         </div>
-        <p className={`${dark ? 'text-white/50' : 'text-slate-500'} mb-8`}>Recurring jobs Jarvis runs for you in the background.</p>
+        <p className={`${dark ? 'text-white/50' : 'text-slate-500'} mb-8`}>Tâches récurrentes que Jarvis exécute pour vous en arrière-plan.</p>
 
         <form onSubmit={create} className={`rounded-2xl border p-5 mb-6 ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-sm'}`}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="md:col-span-2">
               <Input
-                placeholder="e.g. Summarize emails and draft replies"
+                placeholder="ex: Résumer mes emails et préparer des réponses"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className={dark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}
               />
             </div>
             <Input
-              placeholder="Schedule e.g. daily 8am"
+              placeholder="Planification, ex: tous les jours à 8h"
               value={schedule}
               onChange={(e) => setSchedule(e.target.value)}
               className={dark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}
@@ -72,14 +72,14 @@ export default function TasksView() {
             type="submit"
             className={`mt-3 h-10 px-4 rounded-lg text-[13px] font-medium flex items-center gap-2 transition-colors ${dark ? 'bg-white text-slate-900 hover:bg-white/90' : 'bg-slate-900 hover:bg-slate-800 text-white'}`}
           >
-            <Plus className="w-4 h-4" /> Add task
+            <Plus className="w-4 h-4" /> Ajouter une tâche
           </button>
         </form>
 
         {loading ? (
           <div className="flex justify-center py-10"><Loader2 className={`w-5 h-5 animate-spin ${dark ? 'text-white/30' : 'text-slate-400'}`} /></div>
         ) : tasks.length === 0 ? (
-          <div className={`text-center py-16 ${dark ? 'text-white/20' : 'text-slate-400'}`}>No background tasks yet.</div>
+          <div className={`text-center py-16 ${dark ? 'text-white/20' : 'text-slate-400'}`}>Aucune tâche planifiée pour le moment.</div>
         ) : (
           <div className="space-y-2">
             {tasks.map((t) => (
@@ -89,7 +89,7 @@ export default function TasksView() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className={`text-[14px] font-medium truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{t.title}</div>
-                  <div className={`text-[12px] ${dark ? 'text-white/40' : 'text-slate-500'}`}>{t.schedule || 'on demand'}</div>
+                  <div className={`text-[12px] ${dark ? 'text-white/40' : 'text-slate-500'}`}>{t.schedule || 'à la demande'}</div>
                 </div>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${dark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
                   {t.status}

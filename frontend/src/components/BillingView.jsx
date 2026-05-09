@@ -9,37 +9,7 @@ const PLAN_INFO = {
   pro:     { name: 'Pro', color: '#8b5cf6' },
   ultra:   { name: 'Ultra', color: '#7c3aed' },
 };
-
-const MONTHLY_PLANS = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    price: '9.99',
-    description: 'Pour démarrer avec des agents IA fiables.',
-    button: 'Choisir Starter',
-    style: 'starter',
-    features: ['1 000 crédits mensuels', 'Agents IA essentiels', 'Intégration Telegram'],
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: '24.99',
-    description: 'Le meilleur équilibre entre puissance et volume.',
-    button: 'Passer Pro',
-    style: 'pro',
-    popular: true,
-    features: ['2 500 crédits mensuels', 'Chat illimité', 'Tous les plugins', 'Support prioritaire'],
-  },
-  {
-    id: 'ultra',
-    name: 'Ultra',
-    price: '49.99',
-    description: 'Pour les workflows intensifs et la recherche avancée.',
-    button: 'Activer Ultra',
-    style: 'ultra',
-    features: ['5 000 crédits mensuels', 'Mode ultra intelligent', 'Recherche approfondie', 'Support VIP 24/7'],
-  },
-];
+import { PLANS } from '../data/plans';
 
 export default function BillingView() {
   const [data, setData] = useState(null);
@@ -184,14 +154,14 @@ export default function BillingView() {
 
         <div className="mb-10">
           <h2 className="text-[18px] font-bold mb-3">Forfaits mensuels</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {MONTHLY_PLANS.map((monthlyPlan) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {PLANS.map((monthlyPlan) => (
               <UpgradeCard
                 key={monthlyPlan.id}
                 plan={monthlyPlan}
                 active={plan === monthlyPlan.id}
                 pending={pending === monthlyPlan.id}
-                onClick={() => topup(monthlyPlan.id)}
+                onClick={() => monthlyPlan.id !== 'free' && topup(monthlyPlan.id)}
               />
             ))}
           </div>
@@ -220,28 +190,27 @@ const UpgradeCard = ({ plan, active, onClick, pending }) => (
       <span className="font-bold text-[18px]">{plan.name}</span>
       {active && <span className="ml-auto rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-300">Actif</span>}
     </div>
-    <p className="mb-6 min-h-[40px] text-[14px] leading-relaxed text-white/45">{plan.description}</p>
     <div className="flex items-baseline gap-1 mb-6">
-      <span className="text-[42px] font-bold">€{plan.price}</span>
-      <span className="text-white/40">/mois</span>
+      {plan.price > 0 ? <span className="text-[42px] font-bold">€{plan.price}</span> : <span className="text-[42px] font-bold">0€</span>}
+      <span className="text-white/40">{plan.period}</span>
     </div>
     <ul className="mb-8 space-y-3 flex-1">
       {plan.features.map((f) => (
         <li key={f} className="flex items-center gap-2.5 text-[14px]">
           <Check className="w-4 h-4 flex-shrink-0 text-emerald-400" />
-          <span className="text-white/70">{f}</span>
+          <span className="text-white/70 leading-snug">{f}</span>
         </li>
       ))}
     </ul>
-    <button onClick={onClick} disabled={pending} className={`w-full h-12 rounded-xl font-bold text-[14px] transition-all disabled:opacity-60 flex items-center justify-center ${
-      plan.style === 'pro'
-        ? 'bg-gradient-to-r from-cyan-400 to-violet-500 text-black shadow-xl shadow-cyan-500/20 hover:shadow-cyan-500/30'
-        : plan.style === 'starter'
-          ? 'border border-white/20 text-white hover:bg-white hover:text-black'
-          : 'bg-violet-900 border border-violet-500/50 text-white hover:bg-violet-800'
-    }`}>
-      {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : plan.button}
-    </button>
+    {plan.id !== 'free' && (
+      <button onClick={onClick} disabled={pending || active} className={`w-full h-12 rounded-xl font-bold text-[14px] transition-all disabled:opacity-60 flex items-center justify-center ${
+        plan.popular
+          ? 'bg-gradient-to-r from-cyan-400 to-violet-500 text-black shadow-xl shadow-cyan-500/20 hover:shadow-cyan-500/30'
+          : 'border border-white/20 text-white hover:bg-white hover:text-black'
+      }`}>
+        {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : (active ? 'Actuel' : plan.buttonText)}
+      </button>
+    )}
     </div>
   </div>
 );

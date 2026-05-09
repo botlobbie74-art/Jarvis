@@ -7,6 +7,7 @@ import MarketingHome from './pages/MarketingHome';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Pricing from './pages/Pricing';
+import ActivityView from './components/ActivityView';
 import { Toaster } from './components/ui/toaster';
 
 const ProtectedRoute = ({ children }) => {
@@ -41,6 +42,7 @@ function App() {
               <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/app/billing" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/billing" element={<ProtectedRoute><BillingRedirect /></ProtectedRoute>} />
+              <Route path="/activity" element={<ActivityView />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <Toaster />

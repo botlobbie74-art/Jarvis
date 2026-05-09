@@ -105,16 +105,12 @@ export default function Dashboard() {
         <div className="p-4 border-b border-white/10">
           <div className="mb-4 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[14px] font-bold">
-                <span className={dark ? 'text-white' : 'text-slate-900'}>{t('dashboard_credits')}</span>
-                <SettingsIcon className={`w-3.5 h-3.5 ${dark ? 'text-white/30' : 'text-slate-400'}`} />
-              </div>
-              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${dark ? 'bg-white/10' : 'bg-slate-100'}`}>
-                <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center">
-                  <Sparkles className="w-3 h-3 text-white" />
+              <div className="flex flex-col items-end">
+                <div className="flex items-center gap-1.5 text-cyan-400">
+                  <Zap className="w-5 h-5 fill-cyan-400/20" />
+                  <span className="text-[20px] font-bold">{user.credits?.toLocaleString() || 0}</span>
                 </div>
-                <span className={`text-[12px] font-bold tracking-widest ${dark ? 'text-white' : 'text-slate-900'}`}>JARVIS</span>
-                <span className={`text-[13px] font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{user.credits?.toLocaleString() || 0}</span>
+                <span className="text-[10px] uppercase tracking-wider font-semibold opacity-50">crédits</span>
               </div>
             </div>
             <button 
@@ -125,19 +121,19 @@ export default function Dashboard() {
               <div className="w-5 h-5 rounded-full bg-[#451a03]/10 flex items-center justify-center">
                 <Zap className="w-3 h-3 text-[#451a03] fill-[#451a03]" />
               </div>
-              {t('dashboard_refill')}
+              Recharger des crédits
             </button>
           </div>
         </div>
 
         <div className="px-3 py-4 space-y-0.5">
           {[
-            { id: 'chat', icon: MessageSquare, label: t('dashboard_chat') },
-            { id: 'builder', icon: Hammer, label: t('dashboard_build') },
-            { id: 'plugins', icon: Puzzle, label: t('dashboard_plugins') },
-            { id: 'tasks', icon: ListChecks, label: t('dashboard_habits') },
-            { id: 'billing', icon: CreditCard, label: t('dashboard_billing') },
-            { id: 'personas', icon: SettingsIcon, label: t('dashboard_settings') },
+            { id: 'chat', icon: MessageSquare, label: 'Chat' },
+            { id: 'builder', icon: Hammer, label: 'Build' },
+            { id: 'plugins', icon: Puzzle, label: 'Plugins' },
+            { id: 'tasks', icon: ListChecks, label: 'Habitudes' },
+            { id: 'billing', icon: CreditCard, label: 'Facturation' },
+            { id: 'personas', icon: SettingsIcon, label: 'Paramètres' },
           ].map(({ id, icon: Icon, label }) => {
             const active = view === id;
             return (
@@ -161,7 +157,7 @@ export default function Dashboard() {
         </div>
 
         <div className="px-3 pb-2 flex items-center justify-between">
-          <span className={`text-[11px] uppercase tracking-wider font-semibold ${dark ? 'text-white/30' : 'text-slate-400'}`}>{t('dashboard_recent_chats')}</span>
+          <span className={`text-[11px] uppercase tracking-wider font-semibold ${dark ? 'text-white/30' : 'text-slate-400'}`}>Conversations récentes</span>
           <button
             onClick={() => newChat()}
             className={`${dark ? 'text-white/30 hover:text-white' : 'text-slate-400 hover:text-slate-900'} transition-colors`}
@@ -173,7 +169,7 @@ export default function Dashboard() {
         <div className="flex-1 overflow-y-auto px-2">
           {sessions.length === 0 && (
             <div className={`text-[12px] px-4 py-8 text-center italic opacity-30 ${dark ? 'text-white' : 'text-slate-600'}`}>
-              Your future big ideas will appear here.
+              Vos prochains projets apparaîtront ici.
             </div>
           )}
           {sessions.map((s) => {

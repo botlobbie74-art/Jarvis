@@ -232,9 +232,9 @@ export default function CodeAgentView() {
       await api.post(`/projects/${active.project.id}/build`, { thinking_mode: thinkingMode });
       await openProject(active.project.id);
       refreshUser();
-      toast({ title: 'Build complete' });
+      toast({ title: 'Construction terminée' });
     } catch (e) {
-      toast({ title: 'Build failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
+      toast({ title: 'Échec de la construction', description: e?.response?.data?.detail || '', variant: 'destructive' });
     } finally { setBuilding(false); }
   };
 
@@ -248,9 +248,9 @@ export default function CodeAgentView() {
     try {
       const { data } = await api.post(`/projects/${active.project.id}/push-github`, { subdomain: deploySubdomain });
       setDeployResult(data);
-      toast({ title: 'Deploy Successful!' });
+      toast({ title: 'Déploiement réussi !' });
     } catch (e) {
-      toast({ title: 'Deployment failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
+      toast({ title: 'Échec du déploiement', description: e?.response?.data?.detail || '', variant: 'destructive' });
       setDeployModal(false);
     } finally { setPushing(false); }
   };
@@ -267,7 +267,7 @@ export default function CodeAgentView() {
     if (!editingProject) return;
     try {
       await api.patch(`/projects/${editingProject.id}`, { name: editTitle, description: editDesc });
-      toast({ title: 'Project updated' });
+      toast({ title: 'Projet mis à jour' });
       loadProjects();
       if (active?.project?.id === editingProject.id) {
         setActive(prev => ({ ...prev, project: { ...prev.project, name: editTitle, description: editDesc } }));
@@ -310,7 +310,7 @@ export default function CodeAgentView() {
                 onClick={() => setMarketOpen(true)}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all ${dark ? 'bg-white/5 hover:bg-white/10 text-cyan-400' : 'bg-slate-50 hover:bg-slate-100 text-cyan-600'}`}
                >
-                 <Plus className="w-4 h-4" /> Ajouter un module (Blueprint)
+                 <Plus className="w-4 h-4" /> Ajouter un Module SaaS
                </button>
             </div>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}
@@ -371,7 +371,7 @@ export default function CodeAgentView() {
                 <button onClick={createPlan} disabled={creating || !description.trim() || (isFree && (user?.credits || 0) <= 0)}
                   className={`h-11 px-6 rounded-full flex items-center gap-2 transition-colors disabled:opacity-40 font-semibold text-[14px] ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
                   {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
-                  {creating ? 'Planning...' : t('build_start')}
+                  {creating ? 'Planification...' : 'Lancer le Builder'}
                 </button>
               </div>
             </div>
@@ -386,7 +386,7 @@ export default function CodeAgentView() {
           </div>
           {projects.length > 0 && (
             <div className="mt-16">
-              <h2 className={`text-[14px] font-semibold mb-3 ${dark ? 'text-white/80' : 'text-slate-900'}`}>Recent projects</h2>
+              <h2 className={`text-[14px] font-semibold mb-3 ${dark ? 'text-white/80' : 'text-slate-900'}`}>Projets récents</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {projects.slice(0, 8).map((p) => (
                   <div key={p.id} className={`group rounded-xl border p-4 transition-all ${dark ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white border-slate-200 hover:shadow-md'}`}>
@@ -414,7 +414,7 @@ export default function CodeAgentView() {
                     </div>
                     <button onClick={() => openProject(p.id)}
                       className={`mt-3 w-full h-9 rounded-lg text-[13px] font-medium flex items-center justify-center gap-1 transition-colors ${dark ? 'bg-white/5 hover:bg-white/15 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>
-                      Open <ChevronRight className="w-4 h-4" />
+                      Ouvrir <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
@@ -435,7 +435,7 @@ export default function CodeAgentView() {
     <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-[#030305]' : 'bg-slate-50'}`}>
       {/* Header */}
       <header className={`px-5 py-3 border-b flex items-center gap-3 sticky top-0 z-50 backdrop-blur-xl ${dark ? 'bg-black/80 border-white/10' : 'bg-white/90 border-slate-200 shadow-sm'}`}>
-        <button onClick={() => setActive(null)} className={`text-[13px] font-medium transition-opacity hover:opacity-100 ${dark ? 'text-white/40' : 'text-slate-500'}`}>← Projects</button>
+        <button onClick={() => setActive(null)} className={`text-[13px] font-medium transition-opacity hover:opacity-100 ${dark ? 'text-white/40' : 'text-slate-500'}`}>← Projets</button>
         <div className={`h-5 w-px ${dark ? 'bg-white/10' : 'bg-slate-200'}`} />
         <div className="flex-1 min-w-0">
           <div className={`text-[15px] font-semibold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{active.project.name}</div>
@@ -444,18 +444,18 @@ export default function CodeAgentView() {
         {activeJobs.length > 0 && (
           <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-[12px] ${dark ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-700'}`}>
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span>{activeJobs.length} agent{activeJobs.length > 1 ? 's' : ''} working</span>
+            <span>{activeJobs.length} agent{activeJobs.length > 1 ? 's' : ''} au travail</span>
           </div>
         )}
 
         <button onClick={build} disabled={building || active.files?.length > 0}
           className={`h-9 px-4 rounded-xl text-[13px] font-semibold flex items-center gap-2 disabled:opacity-60 disabled:hidden transition-all ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
           {building ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          {building ? 'Building...' : 'Build'}
+          {building ? 'Construction...' : 'Construire'}
         </button>
 
         <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/5 p-1 rounded-xl">
-          <button onClick={() => setView('preview')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'preview' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Preview</button>
+          <button onClick={() => setView('preview')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'preview' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Aperçu</button>
           <button onClick={() => setView('code')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'code' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Code</button>
           <button onClick={downloadZip} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all flex items-center gap-1.5 ${isFree ? 'opacity-50 grayscale' : 'text-slate-500 hover:text-slate-700'}`}>
             <Download className="w-3.5 h-3.5" />ZIP
@@ -482,7 +482,7 @@ export default function CodeAgentView() {
           >
             {ultraMode && <span className="absolute inset-0 bg-white/20 animate-pulse" />}
             <Rocket className={`w-3.5 h-3.5 ${ultraMode ? 'animate-bounce' : ''}`} />
-            Deploy
+            Déployer
           </button>
         </div>
 
@@ -507,7 +507,7 @@ export default function CodeAgentView() {
                 <span className={`text-[13px] font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Jarvis Builder</span>
                 {planSteps.length > 0 && (
                   <span className={`text-[11px] px-2 py-0.5 rounded-full ${dark ? 'bg-white/5 text-white/40' : 'bg-slate-100 text-slate-500'}`}>
-                    {planSteps.filter(s => active.files?.some(f => s.files?.includes(f.path))).length}/{planSteps.length} steps
+                    {planSteps.filter(s => active.files?.some(f => s.files?.includes(f.path))).length}/{planSteps.length} étapes
                   </span>
                 )}
               </div>
@@ -551,7 +551,7 @@ export default function CodeAgentView() {
                 <button onClick={build} disabled={building}
                   className="mt-3 w-full h-9 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors">
                   {building ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                  {building ? 'Building...' : 'Start Building'}
+                  {building ? 'Construction...' : 'Lancer la construction'}
                 </button>
               </div>
             )}
@@ -563,7 +563,7 @@ export default function CodeAgentView() {
               {jobs.length === 0 && !building && (
                 <div className={`text-center py-12 ${dark ? 'text-white/20' : 'text-slate-300'}`}>
                   <Sparkles className="w-8 h-8 mx-auto mb-3 opacity-50" />
-                  <p className="text-[13px]">Activity will appear here</p>
+                  <p className="text-[13px]">L'activité apparaîtra ici</p>
                 </div>
               )}
               {(() => {
@@ -583,7 +583,7 @@ export default function CodeAgentView() {
                           <div>
                             <div className={`text-[10px] font-bold uppercase tracking-widest ${colors.text}`}>{colors.label}</div>
                             <div className={`text-[12px] font-semibold ${dark ? 'text-white/80' : 'text-slate-700'}`}>
-                              {currentGroup.type} {currentGroup.paths.length} file{currentGroup.paths.length > 1 ? 's' : ''}
+                              {currentGroup.type} {currentGroup.paths.length} fichier{currentGroup.paths.length > 1 ? 's' : ''}
                               {currentGroup.model && <span className="ml-2 opacity-30 font-mono text-[10px]">({currentGroup.model}) {currentGroup.tier && `[${currentGroup.tier}]`}</span>}
                             </div>
                           </div>
@@ -663,7 +663,7 @@ export default function CodeAgentView() {
           <div className={`px-4 py-2.5 flex items-center gap-3 border-b ${dark ? 'bg-black/40 border-white/10' : 'bg-white border-slate-200'}`}>
             <div className={`flex-1 flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] ${dark ? 'bg-white/5 border border-white/5 text-white/40' : 'bg-slate-100 text-slate-500'}`}>
               <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="truncate">{active.project.name} — live preview</span>
+              <span className="truncate">{active.project.name} — aperçu en direct</span>
             </div>
             <button onClick={() => loadPreview(active.project.id)} disabled={previewLoading}
               className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${dark ? 'text-white/40 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100'}`}>
@@ -677,7 +677,7 @@ export default function CodeAgentView() {
               <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0f] z-10">
                 <div className="text-center">
                   <Loader2 className="w-8 h-8 animate-spin text-cyan-500 mx-auto mb-3" />
-                  <p className="text-[13px] text-white/40">Loading preview...</p>
+                  <p className="text-[13px] text-white/40">Chargement de l'aperçu...</p>
                 </div>
               </div>
             )}
@@ -697,8 +697,8 @@ export default function CodeAgentView() {
                       <div key={i} className="w-1.5 h-1.5 rounded-full bg-cyan-400" style={{ animation: `pulse 1.2s ease-in-out ${i * 0.15}s infinite` }} />
                     ))}
                   </div>
-                  <p className="text-[14px] font-medium text-white/60">Building your app...</p>
-                  <p className="text-[12px] text-white/30 mt-1">Agents are working on your project</p>
+                  <p className="text-[14px] font-medium text-white/60">Génération de votre application...</p>
+                  <p className="text-[12px] text-white/30 mt-1">Les agents travaillent sur votre projet</p>
                 </div>
               </div>
             ) : !active.files?.length ? (
@@ -707,21 +707,21 @@ export default function CodeAgentView() {
                   <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-5">
                     <Rocket className="w-7 h-7 text-white/30" />
                   </div>
-                  <h3 className="text-[16px] font-semibold text-white mb-2">Ready to build</h3>
-                  <p className="text-[13px] text-white/40 mb-6">Your plan is set. Hit build to start generating your app.</p>
+                  <h3 className="text-[16px] font-semibold text-white mb-2">Prêt à construire</h3>
+                  <p className="text-[13px] text-white/40 mb-6">Votre plan est prêt. Cliquez sur Construire pour générer l'application.</p>
                   <button onClick={build}
                     className="h-10 px-6 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white text-[13px] font-semibold flex items-center gap-2 mx-auto transition-colors">
-                    <Play className="w-4 h-4" />Build App
+                    <Play className="w-4 h-4" />Générer l'App
                   </button>
                 </div>
               </div>
             ) : (
               <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0f]">
                 <div className="text-center">
-                  <p className="text-[13px] text-white/30 mb-3">Preview not available</p>
+                  <p className="text-[13px] text-white/30 mb-3">Aperçu non disponible</p>
                   <button onClick={() => loadPreview(active.project.id)}
                     className={`h-9 px-4 rounded-lg text-[13px] flex items-center gap-2 mx-auto transition-colors ${dark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>
-                    <RefreshCw className="w-4 h-4" />Load Preview
+                    <RefreshCw className="w-4 h-4" />Charger l'aperçu
                   </button>
                 </div>
               </div>
@@ -740,14 +740,14 @@ export default function CodeAgentView() {
                     <Rocket className="w-6 h-6 text-blue-500" />
                   </div>
                   <div>
-                    <h3 className="text-[18px] font-bold tracking-tight">Deploy to Production</h3>
-                    <p className={`text-[13px] opacity-40`}>Your app will be live on Vercel</p>
+                    <h3 className="text-[18px] font-bold tracking-tight">Déployer en Production</h3>
+                    <p className={`text-[13px] opacity-40`}>Votre application sera en ligne sur Vercel</p>
                   </div>
                 </div>
 
                 <div className="space-y-4 mb-8">
                   <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-widest opacity-40 mb-2">Subdomain</label>
+                    <label className="block text-[11px] font-bold uppercase tracking-widest opacity-40 mb-2">Sous-domaine</label>
                     <div className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'} focus-within:ring-2 focus-within:ring-blue-500/50`}>
                       <input 
                         value={deploySubdomain} 
@@ -765,7 +765,7 @@ export default function CodeAgentView() {
                     onClick={() => setDeployModal(false)}
                     className={`flex-1 h-12 rounded-xl font-bold text-[14px] transition-colors ${dark ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}
                   >
-                    Cancel
+                    Annuler
                   </button>
                   <button 
                     onClick={pushGithub}
@@ -773,7 +773,7 @@ export default function CodeAgentView() {
                     className="flex-[2] h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 disabled:opacity-30 transition-all"
                   >
                     {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
-                    {pushing ? 'Deploying...' : 'Confirm Deploy'}
+                    {pushing ? 'Déploiement...' : 'Confirmer le Déploiement'}
                   </button>
                 </div>
               </>
@@ -875,8 +875,8 @@ export default function CodeAgentView() {
                 <LayoutGrid className="w-6 h-6 text-cyan-500" />
               </div>
               <div>
-                <h3 className="text-[24px] font-[900] tracking-tighter">Marketplace de Blueprints</h3>
-                <p className="text-[14px] opacity-40">Modules SaaS préconfigurés activables en un clic.</p>
+                <h3 className="text-[24px] font-[900] tracking-tighter">Ajouter un module à votre projet</h3>
+                <p className="text-[14px] opacity-40">Des fonctionnalités prêtes à l'emploi, injectées directement dans votre code en un clic.</p>
               </div>
             </div>
             <button onClick={() => setMarketOpen(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors">
