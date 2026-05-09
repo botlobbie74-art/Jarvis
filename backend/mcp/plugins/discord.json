@@ -1,0 +1,18 @@
+{
+  "id": "discord",
+  "name": "Discord",
+  "auth_type": "api_key",
+  "base_url": "https://discord.com/api/v10",
+  "actions": [
+    {
+      "name": "send_message",
+      "method": "POST",
+      "endpoint": "/channels/{channel_id}/messages"
+    },
+    {
+      "name": "create_channel",
+      "method": "POST",
+      "endpoint": "/guilds/{guild_id}/channels"
+    }
+  ]
+}

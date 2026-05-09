@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from services.telegram_service import send_telegram_notification
+from services.telegram_service import handle_telegram_intent, send_telegram_notification
 from config.agent_models_config import AGENT_MODELS
 import re
 import asyncio
@@ -11,6 +11,7 @@ import os, logging, uuid, json, asyncio, io, zipfile
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
+from marketplace import plugin_registry, plugin_loader
 from datetime import datetime, timezone, timedelta
 import jwt
 from passlib.context import CryptContext
@@ -57,6 +58,80 @@ security = HTTPBearer()
 app = FastAPI(title="Jarvis API")
 api_router = APIRouter(prefix="/api")
 log = logging.getLogger("jarvis")
+
+POST_COMPLETION_SUGGESTION_FALLBACKS = [
+    {"icon": "🌍", "title": "Ajouter la traduction", "action": "Ajoute une traduction française et anglaise à cette app."},
+    {"icon": "🧪", "title": "Ajouter des tests", "action": "Ajoute une suite de tests pour sécuriser les fonctionnalités principales."},
+    {"icon": "📊", "title": "Ajouter Analytics", "action": "Ajoute un suivi analytics simple pour mesurer l'usage."},
+]
+
+async def _post_completion_suggestions(description: str) -> List[Dict[str, str]]:
+    """Generate free post-completion suggestions through Groq. No user credits are consumed."""
+    prompt = (
+        "Tu es Jarvis, un assistant IA. L'utilisateur vient de terminer : "
+        f"{description}. Propose exactement 3 suggestions courtes et actionnables pour la prochaine étape logique. "
+        'Format JSON : [{"icon": "emoji", "title": "titre court", "action": "ce que jarvis ferait si l\'user clique"}] '
+        "Sois concis, pratique, pas générique."
+    )
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if not groq_key:
+        return POST_COMPLETION_SUGGESTION_FALLBACKS
+    try:
+        async with httpx.AsyncClient(timeout=20) as cli:
+            r = await cli.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "llama-3.1-8b-instant",
+                    "temperature": 0.4,
+                    "max_tokens": 350,
+                    "messages": [
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": "Génère les 3 suggestions maintenant. Réponds uniquement avec le JSON."},
+                    ],
+                },
+            )
+        if r.status_code >= 400:
+            log.warning("Groq suggestions failed: %s", r.text[:300])
+            return POST_COMPLETION_SUGGESTION_FALLBACKS
+        raw = r.json()["choices"][0]["message"]["content"].strip()
+        if "```" in raw:
+            raw = raw.split("```")[1].replace("json", "", 1).strip()
+        data = json.loads(raw)
+        if not isinstance(data, list):
+            return POST_COMPLETION_SUGGESTION_FALLBACKS
+        suggestions = []
+        for item in data[:3]:
+            if isinstance(item, dict) and item.get("title") and item.get("action"):
+                suggestions.append({
+                    "icon": str(item.get("icon") or "✨")[:4],
+                    "title": str(item["title"])[:80],
+                    "action": str(item["action"])[:240],
+                })
+        return suggestions if len(suggestions) == 3 else POST_COMPLETION_SUGGESTION_FALLBACKS
+    except Exception as e:
+        log.warning("Groq suggestion generation error: %s", e)
+        return POST_COMPLETION_SUGGESTION_FALLBACKS
+
+async def _append_completion_message(user_id: str, description: str, content: str, suggestions: Optional[List[Dict[str, str]]] = None):
+    """Persist a completion message with suggestions in the latest Jarvis chat session."""
+    try:
+        sessions = sb.table("jarvis_chat_sessions").select("*").eq("user_id", user_id).eq("assistant_id", "jarvis").order("updated_at", desc=True).limit(1).execute().data
+        if not sessions:
+            return
+        sid = sessions[0]["id"]
+        suggestions = suggestions or await _post_completion_suggestions(description)
+        sb.table("jarvis_chat_messages").insert({
+            "id": str(uuid.uuid4()),
+            "session_id": sid,
+            "role": "assistant",
+            "content": content,
+            "assistant_id": "jarvis",
+            "metadata": {"agent_type": "jarvis", "post_completion_suggestions": suggestions},
+        }).execute()
+        sb.table("jarvis_chat_sessions").update({"updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", sid).execute()
+    except Exception as e:
+        log.warning("Failed to append completion suggestions message: %s", e)
 
 @app.get("/")
 @app.get("/health")
@@ -359,7 +434,36 @@ def _summarize_project(p: dict) -> str:
         f"  Summary: {plan.get('summary', '')[:150]}"
     )
 
-BUILDER_AWARE_SYSTEM = """You are Jarvis, the world's first 24/7 proactive AI agent. Like "Carlton," you are always on, working for the user even while they sleep.
+ANTI_HALLUCINATION_RULES = """
+RÈGLES ANTI-HALLUCINATION (strictes et obligatoires) :
+1. Si tu ne connais pas la réponse exacte à une question technique :
+   → Utilise l'outil web_search pour chercher la documentation officielle.
+   → Cite ta source dans ta réponse.
+   → Ne jamais inventer une API, une fonction ou une syntaxe.
+2. Si une intégration demandée n'est pas encore disponible dans Jarvis :
+   → Ne pas dire "je ne peux pas faire ça".
+   → Dire : "Cette intégration n'est pas encore native dans Jarvis. Voici comment je peux quand même t'aider : [alternative concrète]".
+   → Proposer : appel API direct, webhook, ou module custom.
+3. Si tu génères du code et tu n'es pas sûr d'une syntaxe :
+   → Ajouter un commentaire : // À vérifier : [ce qui est incertain]
+   → Lancer une recherche web pour confirmer avant de livrer.
+4. Si une erreur survient pendant un build :
+   → Chercher l'erreur exacte sur Stack Overflow / GitHub Issues.
+   → Ne jamais dire "essaie de redémarrer" sans avoir diagnostiqué.
+5. Outils disponibles que tu CONNAIS et PEUX UTILISER :
+   * Google APIs : Gmail, Drive, Sheets, Docs, Calendar, YouTube
+   * GitHub API : push, create repo, list repos, create PR
+   * Telegram Bot API : send message, receive commands
+   * Tavily API : web search
+   * Stripe API : create checkout, manage subscriptions
+   * Supabase : database, auth, storage, realtime
+6. Si une action demandée N'EST PAS dans cette liste :
+   → Chercher si une API publique existe.
+   → Proposer de l'implémenter via webhook ou appel direct.
+   → Ne JAMAIS simuler ou prétendre avoir exécuté quelque chose.
+"""
+
+BUILDER_AWARE_SYSTEM = """You are Jarvis, the world's first 24/7 proactive AI agent. Like "Carlton," you are always on, working for the user even while they sleep.""" + ANTI_HALLUCINATION_RULES + """
 
 YOUR VISION:
 You are not just a reactive bot. You are a proactive partner aligned with the user's vision. You suggest high-value actions, automate repetitive tasks, and get stuff done overnight so the user wakes up to progress.
@@ -576,6 +680,9 @@ DEFAULT_PLUGINS = [
     {"id": "youtube", "name": "YouTube", "description": "Search and manage videos", "category": "media"},
 ]
 
+def check_tool_availability(plugin_id: str) -> bool:
+    return any(p["id"] == plugin_id for p in DEFAULT_PLUGINS)
+
 @api_router.get("/plugins")
 async def list_plugins(user=Depends(get_current_user)):
     rows = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).execute().data
@@ -740,7 +847,7 @@ TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME', 'JarvisAgentBot'
 # In-memory link codes (short-lived, production should use Redis/DB)
 _telegram_link_codes: Dict[str, str] = {}  # code -> user_id
 
-PLAN_SYSTEM = """You are the CEO AGENT, leading a high-performance ensemble of specialized agents to build a world-class application.
+PLAN_SYSTEM = """You are the CEO AGENT, leading a high-performance ensemble of specialized agents to build a world-class application.""" + ANTI_HALLUCINATION_RULES + """
 
 YOUR HIERARCHY:
 1. CTO AGENT (Architect, Backend, Frontend, Infra, Security, Refactor): Designs technical architecture and ensures code excellence.
@@ -768,7 +875,7 @@ Return STRICT JSON ONLY (no prose, no markdown fences) with this exact shape:
 2. The plan must include explicit security and verification steps.
 3. Use production-ready patterns exclusively."""
 
-CODE_SYSTEM = """You are Jarvis, an autonomous senior full-stack engineer with full terminal access. Given a project plan and a target file path, output ONLY the complete file content (no markdown fences, no commentary). Code must be production-ready, complete, runnable, and specific to the project described. If a package needs to be installed, you can assume it will be available or specify it in terminal commands. Use real-world patterns, never generic boilerplate."""
+CODE_SYSTEM = """You are Jarvis, an autonomous senior full-stack engineer with full terminal access.""" + ANTI_HALLUCINATION_RULES + """ Given a project plan and a target file path, output ONLY the complete file content (no markdown fences, no commentary). Code must be production-ready, complete, runnable, and specific to the project described. If a package needs to be installed, you can assume it will be available or specify it in terminal commands. Use real-world patterns, never generic boilerplate."""
 
 @api_router.get("/projects")
 async def list_projects(user_id: Optional[str] = None, user=Depends(get_current_user)):
@@ -855,18 +962,11 @@ async def plan_project(payload: ProjectCreate, user=Depends(get_current_user)):
 
 @api_router.post("/projects/{pid}/suggest")
 async def suggest_continuation(pid: str, user=Depends(get_current_user)):
-    """Generate 1-5 suggestions to improve or continue the app."""
+    """Generate 3 free contextual suggestions to improve or continue the app."""
     proj = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).single().execute().data
     if not proj: raise HTTPException(404, "Not found")
-    prompt = f"Project: {proj['name']}\nDescription: {proj['description']}\n\nBased on this app, suggest 3-5 specific next steps or features to implement. Return a simple JSON list of strings: {{\"suggestions\": [\"...\"]}}"
-    try:
-        res = await router_call("chat", "You are a product manager.", prompt, sb=sb)
-        raw = res["content"].strip()
-        if "```" in raw: raw = raw.split("```")[1].replace("json", "").strip()
-        data = json.loads(raw)
-        return data
-    except Exception:
-        return {"suggestions": ["Add user profiles", "Integrate analytics", "Improve UI design", "Add dark mode"]}
+    desc = f"Build de l'application {proj.get('name', 'Jarvis App')} : {proj.get('description', '')}"
+    return {"suggestions": await _post_completion_suggestions(desc)}
 
 async def _shadow_worker_speculate(pid: str, path: str, content: str):
     """Point 6: SHADOW WORKER - Exécution parallèle.
@@ -895,6 +995,19 @@ async def _shadow_worker_speculate(pid: str, path: str, content: str):
 
 class BuildRequest(BaseModel):
     thinking_mode: str = "normal"
+
+class BuilderStartRequest(BaseModel):
+    description: str
+    thinking_mode: str = "normal"
+
+@api_router.post("/builder/start")
+async def builder_start(payload: BuilderStartRequest, user=Depends(get_current_user)):
+    """Compatibility endpoint for Telegram and external clients: plan then build in background."""
+    proj = await plan_project(ProjectCreate(description=payload.description, thinking_mode=payload.thinking_mode), user=user)
+    if proj.get("budget_guard"):
+        return proj
+    asyncio.create_task(build_project(proj["id"], BuildRequest(thinking_mode=payload.thinking_mode), user=user))
+    return {"status": "started", "project": proj}
 
 @api_router.post("/projects/{pid}/build")
 async def build_project(pid: str, req: BuildRequest, user=Depends(get_current_user)):
@@ -1022,7 +1135,16 @@ async def build_project(pid: str, req: BuildRequest, user=Depends(get_current_us
         asyncio.create_task(send_telegram_notification(user["id"], msg, sb))
     except Exception: pass
 
-    return {"ok": True, "generated": generated}
+    completion_description = f"Build de l'application {proj.get('name', 'Jarvis App')} : {proj.get('description', '')}"
+    suggestions = await _post_completion_suggestions(completion_description)
+    await _append_completion_message(
+        user["id"],
+        completion_description,
+        f"✅ Build terminé ! Ton app {proj.get('name', 'Jarvis App')} est prête.",
+        suggestions,
+    )
+
+    return {"ok": True, "generated": generated, "suggestions": suggestions}
 
 @api_router.get("/projects/{pid}")
 async def get_project(pid: str, user=Depends(get_current_user)):
@@ -1211,6 +1333,8 @@ GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/gmail.compose",
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/youtube.readonly",
 ]
@@ -1597,6 +1721,62 @@ async def telegram_webhook(payload: dict):
                 await _tg_send(chat_id, "You're not linked yet. Open jarvisagent.app → Plugins → Telegram and send me the code.")
             return {"ok": True}
 
+        async def _telegram_start_builder(description: str) -> str:
+            desc = description.strip() or text
+            result = await builder_start(BuilderStartRequest(description=desc, thinking_mode="normal"), user={"id": uid})
+            if result.get("budget_guard"):
+                return result.get("message", "Budget guard activé : ouvre Jarvis pour confirmer.")
+            project = result.get("project", {})
+            return f"Projet lancé : {project.get('name', 'ton app')}. Je te préviens automatiquement quand le build est terminé."
+
+        async def _telegram_deep_research(subject: str) -> str:
+            mission = {
+                "id": str(uuid.uuid4()),
+                "type": "deep_research",
+                "priority": 1,
+                "params": {"subject": subject.strip() or text},
+            }
+            resp = await chief_execute(ChiefExecuteRequest(missions=[mission]), user={"id": uid})
+            if isinstance(resp, dict) and resp.get("requires_confirmation"):
+                return resp.get("message", "Confirmation requise dans Jarvis.")
+            async for _ in resp.body_iterator:
+                pass
+            return f"Recherche terminée sur : {subject.strip() or text}"
+
+        async def _telegram_builder_status() -> str:
+            status = await builder_status(uid)
+            if "error" in status:
+                return "Tu n'as pas de projet en cours."
+            project = status.get("project", {})
+            return f"{project.get('name', 'Ton build')} — étape {status.get('step')} : {status.get('description')}"
+
+        async def _telegram_list_projects() -> str:
+            projs = await list_projects(user_id=uid, user={"id": uid, "is_admin": True})
+            if not projs:
+                return "Tu n'as pas encore créé de projets."
+            return "Tes 5 derniers projets :\n" + "\n".join([f"• {p.get('name', 'Sans nom')} ({p.get('status', 'inconnu')})" for p in projs[:5]])
+
+        async def _telegram_llm_sonnet(prompt: str) -> str:
+            res = await router_call(
+                "logic",
+                "Tu es un assistant email. Rédige une réponse prête à envoyer, concise, naturelle et professionnelle.",
+                prompt,
+                sb=sb,
+                thinking_mode="normal",
+                manual_model="claude-3-5-sonnet-latest",
+            )
+            return res["content"].strip()
+
+        handled = await handle_telegram_intent(text, uid, str(chat_id), {
+            "start_builder": _telegram_start_builder,
+            "deep_research": _telegram_deep_research,
+            "builder_status": _telegram_builder_status,
+            "list_projects": _telegram_list_projects,
+            "llm_sonnet": _telegram_llm_sonnet,
+        })
+        if handled:
+            return {"ok": True}
+
         # --- INTENT DETECTION ---
         text_l = text.lower()
         
@@ -1803,8 +1983,8 @@ async def topup_credits(payload: CreditTopupIn, user=Depends(get_current_user)):
                 },
                 "quantity": 1,
             }],
-            "success_url": f"{APP_PUBLIC_URL}/app?topup=true",
-            "cancel_url": f"{APP_PUBLIC_URL}/pricing",
+            "success_url": "https://jarvisagent.app/app/billing?success=true",
+            "cancel_url": "https://jarvisagent.app/app/billing?cancelled=true",
             "metadata": {
                 "user_id": user["id"], 
                 "credits": str(PLAN_CREDITS[val] if is_subscription else val), 
@@ -2119,6 +2299,62 @@ async def voice_transcribe(audio: UploadFile = File(...), user=Depends(get_curre
 class MissionParseRequest(BaseModel):
     message: str
 
+# --- Marketplace Modules (Blueprints) ---
+
+@api_router.get("/marketplace/modules")
+async def list_marketplace_modules(user=Depends(get_current_user)):
+    """Fetch all available SaaS modules."""
+    return plugin_registry.list_modules()
+
+@api_router.post("/marketplace/install")
+async def install_marketplace_module(payload: Dict[str, Any], user=Depends(get_current_user)):
+    """Install a SaaS module into a specific project."""
+    project_id = payload.get("project_id")
+    module_id = payload.get("module_id")
+    
+    if not project_id or not module_id:
+        raise HTTPException(400, "Missing project_id or module_id")
+    
+    module = plugin_registry.get_module(module_id)
+    if not module:
+        raise HTTPException(404, "Module not found")
+    
+    # 1. Deduct credits
+    cost = module.get("credits_cost", 10)
+    balance = _user_credits(user["id"])
+    if balance < cost:
+        raise HTTPException(402, f"Crédits insuffisants. Coût: {cost}, Disponible: {balance}")
+    
+    # 2. Execute installation
+    success = plugin_loader.install_module(module, project_id, sb)
+    if not success:
+        raise HTTPException(500, "Installation failed")
+    
+    # 3. Finalize credit deduction
+    _consume_credits_v2(user["id"], "claude-3-5-sonnet-latest", "ELITE_LOGIC", {}, f"Install Module: {module['name']}", task_role="marketplace")
+    
+    return {"success": True, "message": f"Module {module['name']} installé avec succès."}
+
+@api_router.get("/tools/check")
+async def check_tools(user_id: str = Depends(get_current_user)):
+    """Module 4: Global Tool Availability Check."""
+    tools = ["gmail", "github", "telegram", "stripe", "supabase", "youtube"]
+    results = {}
+    
+    plugs = sb.table("jarvis_plugins").select("*").eq("user_id", user_id["id"]).eq("status", "connected").execute().data
+    connected_ids = [p["plugin_id"] for p in plugs]
+    
+    for tool in tools:
+        is_available = tool in connected_ids
+        if tool == "supabase": is_available = True # Core
+        
+        results[tool] = {
+            "available": is_available,
+            "message": f"{tool.capitalize()} ✅" if is_available else f"{tool.capitalize()} ❌ (non connecté)",
+            "connect_url": "/plugins"
+        }
+    return results
+
 @api_router.post("/chief/parse")
 async def chief_parse_mission(req: MissionParseRequest, user=Depends(get_current_user)):
     """Module 1: Mission Parser via WORKER tier."""
@@ -2219,8 +2455,8 @@ async def chief_execute(req: ChiefExecuteRequest, user=Depends(get_current_user)
                     # Deduct credit AT THE END of mission
                     cost = _consume_credits_v2(user["id"], "claude-3-5-sonnet-latest", "ELITE_LOGIC", {}, f"Mission: {m['type']}", task_role=m["type"])
                     
-                    
-                    yield f"data: {json.dumps({'mission_id': mid, 'status': 'done', 'preview': f'Succès de la mission {m['type']}'})}\\n\\n"
+                    preview = f"Succès de la mission {m['type']}"
+                    yield f"data: {json.dumps({'mission_id': mid, 'status': 'done', 'preview': preview})}\\n\\n"
                     yield f"data: {json.dumps({'type': 'credits_deducted', 'amount': cost, 'new_balance': _user_credits(user['id'])})}\\n\\n"
                     completed.append(mid)
                 except Exception as e:
@@ -2235,7 +2471,15 @@ async def chief_execute(req: ChiefExecuteRequest, user=Depends(get_current_user)
 
         # Final Report Generation via ELITE_LOGIC
         summary = "Toutes les missions ont été exécutées avec succès."
-        yield f"data: {json.dumps({'type': 'final_report', 'report': {'completed': completed, 'summary': summary}})}\\n\\n"
+        mission_description = ", ".join([f"{m.get('type', 'mission')} {m.get('params', {})}" for m in req.missions])
+        suggestions = await _post_completion_suggestions(f"Mission Chief of Staff : {mission_description}")
+        await _append_completion_message(
+            user["id"],
+            f"Mission Chief of Staff : {mission_description}",
+            f"📋 Chief of Staff : mission terminée. {len(completed)} tâche(s) exécutée(s) avec succès.",
+            suggestions,
+        )
+        yield f"data: {json.dumps({'type': 'final_report', 'report': {'completed': completed, 'summary': summary}, 'suggestions': suggestions})}\\n\\n"
         
         # Notify via Telegram
         msg = f"📋 *Chief of Staff : Mission terminée !*\n{len(completed)} tâches exécutées avec succès."

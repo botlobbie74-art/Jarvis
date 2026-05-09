@@ -1,0 +1,15 @@
+{
+  "id": "user-roles",
+  "name": "Rôles Utilisateurs",
+  "category": "auth",
+  "description": "Système Admin/User/Guest avec middleware de protection.",
+  "dependencies": [],
+  "env_required": [],
+  "files_to_inject": [
+    {
+      "path": "src/middleware/rbac.ts",
+      "template": "rbac.ts"
+    }
+  ],
+  "credits_cost": 15
+}

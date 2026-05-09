@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import MarketingHome from './pages/MarketingHome';
@@ -23,6 +23,11 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
+const BillingRedirect = () => {
+  const location = useLocation();
+  return <Navigate to={`/app/billing${location.search}`} replace />;
+};
+
 function App() {
   return (
     <div className="App">
@@ -34,6 +39,8 @@ function App() {
               <Route path="/login" element={<PublicRoute><Landing /></PublicRoute>} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/app/billing" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/billing" element={<ProtectedRoute><BillingRedirect /></ProtectedRoute>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <Toaster />

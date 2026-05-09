@@ -6,6 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { JarvisFace } from './JarvisLogo';
 import { t } from '../lib/i18n';
+import { Plus, LayoutGrid, Box, Shield, CreditCard, Mail, Flag, Key, Users } from 'lucide-react';
 
 const ROLE_COLORS = {
   'ceo': { dot: 'bg-amber-400', text: 'text-amber-400', label: 'CEO' },
@@ -52,6 +53,9 @@ export default function CodeAgentView() {
   const [editingProject, setEditingProject] = useState(null); // { id, name, description }
   const [editTitle, setEditTitle] = useState('');
   const [editDesc, setEditDesc] = useState('');
+  const [marketOpen, setMarketOpen] = useState(false);
+  const [modules, setModules] = useState([]);
+  const [installingModule, setInstallingModule] = useState(null);
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
   const { toast } = useToast();
@@ -70,9 +74,36 @@ export default function CodeAgentView() {
 
   useEffect(() => {
     loadProjects();
+    loadModules();
     const prompt = sessionStorage.getItem('jarvis_builder_prompt');
     if (prompt) { sessionStorage.removeItem('jarvis_builder_prompt'); setDescription(prompt); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadModules = async () => {
+    try {
+      const { data } = await api.get('/marketplace/modules');
+      setModules(data);
+    } catch (e) {}
+  };
+
+  const installModule = async (moduleId) => {
+    if (!active) {
+      toast({ title: "Sélectionnez un projet d'abord", variant: "destructive" });
+      return;
+    }
+    setInstallingModule(moduleId);
+    try {
+      await api.post('/marketplace/install', { project_id: active.project.id, module_id: moduleId });
+      toast({ title: "Module installé !", description: "Les fichiers ont été injectés dans votre projet." });
+      setMarketOpen(false);
+      openProject(active.project.id); // Refresh project state
+      refreshUser();
+    } catch (e) {
+      toast({ title: "Erreur d'installation", description: e?.response?.data?.detail || "Vérifiez vos crédits.", variant: "destructive" });
+    } finally {
+      setInstallingModule(null);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('jarvis_thinking_mode', thinkingMode);
@@ -157,9 +188,18 @@ export default function CodeAgentView() {
     if (!description.trim()) return;
     setCreating(true);
     try {
-      let fullDesc = description;
-      if (attachedFile) fullDesc += `\n\n[Attached file: ${attachedFile.name}]`;
-      const { data } = await api.post('/projects/plan', { description: fullDesc, thinking_mode: thinkingMode });
+      // Tool check
+      const { data: toolStatus } = await api.get('/tools/check');
+      const toolMsg = Object.values(toolStatus).map(t => t.message).join(' ');
+      toast({ title: '🔌 Vérification des outils...', description: toolMsg });
+      await new Promise(r => setTimeout(r, 800));
+
+      const { data } = await api.post('/projects/plan', { 
+        description, 
+        attached_file: attachedFile ? { name: attachedFile.name, content: await _readFile(attachedFile) } : null,
+        auto_build: autoBuild,
+        thinking_mode: thinkingMode
+      });
       setProjects((p) => [data, ...p]);
       setDescription('');
       setAttachedFile(null);
@@ -183,6 +223,12 @@ export default function CodeAgentView() {
     setBuilding(true);
     setPreviewSrc('');
     try {
+      // Tool check
+      const { data: toolStatus } = await api.get('/tools/check');
+      const toolMsg = Object.values(toolStatus).map(t => t.message).join(' ');
+      toast({ title: '🔌 Vérification des outils...', description: toolMsg });
+      await new Promise(r => setTimeout(r, 800));
+
       await api.post(`/projects/${active.project.id}/build`, { thinking_mode: thinkingMode });
       await openProject(active.project.id);
       refreshUser();
@@ -258,6 +304,15 @@ export default function CodeAgentView() {
                 </div>
               </div>
             )}
+            
+            <div className="px-6 pt-5 flex items-center justify-between">
+               <button 
+                onClick={() => setMarketOpen(true)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all ${dark ? 'bg-white/5 hover:bg-white/10 text-cyan-400' : 'bg-slate-50 hover:bg-slate-100 text-cyan-600'}`}
+               >
+                 <Plus className="w-4 h-4" /> Ajouter un module (Blueprint)
+               </button>
+            </div>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) createPlan(); }}
               placeholder={isFree && (user?.credits || 0) <= 0 ? t('dashboard_out_of_credits') : t('build_placeholder')}
@@ -779,7 +834,6 @@ export default function CodeAgentView() {
           </div>
         </div>
       )}
-    </div>
       {/* Edit Project Modal */}
       {editingProject && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
@@ -811,6 +865,73 @@ export default function CodeAgentView() {
           </div>
         </div>
       )}
+    {/* Marketplace Modal */}
+    {marketOpen && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+        <div className={`w-full max-w-4xl rounded-[32px] shadow-2xl border flex flex-col max-h-[80vh] ${dark ? 'bg-[#0a0a0f] border-white/10' : 'bg-white border-slate-200'}`}>
+          <div className="p-8 border-b border-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 flex items-center justify-center">
+                <LayoutGrid className="w-6 h-6 text-cyan-500" />
+              </div>
+              <div>
+                <h3 className="text-[24px] font-[900] tracking-tighter">Marketplace de Blueprints</h3>
+                <p className="text-[14px] opacity-40">Modules SaaS préconfigurés activables en un clic.</p>
+              </div>
+            </div>
+            <button onClick={() => setMarketOpen(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors">
+              <XIcon className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {modules.map(m => {
+                const Icon = {
+                  'auth': Shield,
+                  'revenue': CreditCard,
+                  'comm': Mail,
+                  'intel': Box,
+                  'multiplier': Zap
+                }[m.category] || Box;
+
+                return (
+                  <div key={m.id} className={`group p-6 rounded-3xl border transition-all ${dark ? 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05] hover:border-white/10' : 'bg-slate-50 border-slate-200 hover:bg-white hover:shadow-xl'}`}>
+                    <div className="flex items-start justify-between mb-4">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${dark ? 'bg-white/5' : 'bg-white shadow-sm'}`}>
+                        <Icon className="w-6 h-6 text-cyan-500" />
+                      </div>
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[11px] font-black tracking-widest">
+                        <Sparkles className="w-3 h-3" /> {m.credits_cost} CRED
+                      </div>
+                    </div>
+                    <h4 className="text-[18px] font-bold mb-2">{m.name}</h4>
+                    <p className="text-[13px] opacity-50 mb-6 leading-relaxed">{m.description}</p>
+                    
+                    <button 
+                      onClick={() => installModule(m.id)}
+                      disabled={installingModule === m.id || (isFree && (user?.credits || 0) < m.credits_cost)}
+                      className={`w-full h-12 rounded-2xl font-bold text-[14px] flex items-center justify-center gap-2 transition-all ${
+                        installingModule === m.id ? 'bg-white/10 text-white/40 cursor-not-allowed' :
+                        (isFree && (user?.credits || 0) < m.credits_cost) ? 'bg-red-500/10 text-red-500 cursor-not-allowed' :
+                        'bg-cyan-500 hover:bg-cyan-400 text-black shadow-lg shadow-cyan-500/20 active:scale-95'
+                      }`}
+                    >
+                      {installingModule === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                      {installingModule === m.id ? 'Installation...' : 'Installer maintenant'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          <div className="p-6 bg-white/5 border-t border-white/5 text-center">
+            <p className="text-[12px] opacity-30 italic">Les modules sont injectés directement dans votre base de code source.</p>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }

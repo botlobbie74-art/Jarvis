@@ -1,0 +1,18 @@
+{
+  "id": "notion",
+  "name": "Notion",
+  "auth_type": "api_key",
+  "base_url": "https://api.notion.com/v1",
+  "actions": [
+    {
+      "name": "create_page",
+      "method": "POST",
+      "endpoint": "/pages"
+    },
+    {
+      "name": "query_database",
+      "method": "POST",
+      "endpoint": "/databases/{database_id}/query"
+    }
+  ]
+}

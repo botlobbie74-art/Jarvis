@@ -1,0 +1,18 @@
+{
+  "id": "slack",
+  "name": "Slack",
+  "auth_type": "oauth2",
+  "base_url": "https://slack.com/api",
+  "actions": [
+    {
+      "name": "send_message",
+      "method": "POST",
+      "endpoint": "/chat.postMessage"
+    },
+    {
+      "name": "list_channels",
+      "method": "GET",
+      "endpoint": "/conversations.list"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "team-invitations",
+  "name": "Invitations Équipe",
+  "category": "multiplier",
+  "description": "Système d'invitation par email et gestion des membres.",
+  "dependencies": ["uuid"],
+  "env_required": [],
+  "files_to_inject": [
+    {
+      "path": "src/lib/teams.ts",
+      "template": "teams.ts"
+    }
+  ],
+  "credits_cost": 25
+}

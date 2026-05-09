@@ -4,7 +4,6 @@ import { PLUGIN_ICONS, PLUGIN_ACCENT } from '../data/assistants';
 import { Loader2, Check, Plug, X as XIcon, ExternalLink, Copy } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
-import { t } from '../lib/i18n';
 
 export default function PluginsView() {
   const [plugins, setPlugins] = useState([]);
@@ -93,9 +92,9 @@ export default function PluginsView() {
       <div className="max-w-5xl mx-auto px-8 py-10">
         <div className="flex items-center gap-3 mb-1">
           <Plug className={`w-6 h-6 ${dark ? 'text-white' : 'text-slate-900'}`} />
-          <h1 className={`text-[28px] font-[900] tracking-tighter ${dark ? 'text-white' : 'text-slate-900'}`}>{t('plugins_title')}</h1>
+          <h1 className={`text-[28px] font-[900] tracking-tighter ${dark ? 'text-white' : 'text-slate-900'}`}>Plugins</h1>
         </div>
-        <p className={`${dark ? 'text-white/40' : 'text-slate-500'} mb-8`}>{t('plugins_desc')}</p>
+        <p className={`${dark ? 'text-white/40' : 'text-slate-500'} mb-8`}>Connectez vos outils pour donner plus de puissance à Jarvis.</p>
 
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className={`w-6 h-6 animate-spin ${dark ? 'text-white/30' : 'text-slate-200'}`} /></div>
@@ -156,6 +155,36 @@ export default function PluginsView() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {loading ? null : (
+          <div className="mt-16">
+            <h2 className={`text-[20px] font-bold mb-6 ${dark ? 'text-white' : 'text-slate-900'}`}>Bientôt disponible</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                { id: 'discord', name: 'Discord', desc: 'Alertes et commandes Discord.' },
+                { id: 'slack', name: 'Slack', desc: 'Messagerie collaborative.' },
+                { id: 'notion', name: 'Notion', desc: 'Gestion de bases de connaissances.' },
+                { id: 'airtable', name: 'Airtable', desc: 'Bases de données relationnelles.' },
+                { id: 'whatsapp_cloud', name: 'WhatsApp Cloud', desc: 'API officielle Meta.' }
+              ].map(p => (
+                <div key={p.id} className={`group relative p-6 rounded-3xl border transition-all grayscale opacity-50 ${dark ? 'bg-white/[0.02] border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${dark ? 'bg-white/5' : 'bg-white shadow-sm'}`}>
+                      <div className="w-6 h-6 bg-slate-500/20 rounded-lg" />
+                    </div>
+                  </div>
+                  <h3 className={`text-[16px] font-bold mb-1 ${dark ? 'text-white/90' : 'text-slate-900'}`}>{p.name}</h3>
+                  <p className={`text-[13px] leading-relaxed mb-6 ${dark ? 'text-white/40' : 'text-slate-500'}`}>{p.desc}</p>
+                  <button 
+                    onClick={() => toast({ title: 'Noté !', description: 'On vous préviendra dès la sortie.' })}
+                    className={`w-full h-10 rounded-xl text-[12px] font-bold transition-all ${dark ? 'bg-white/5 text-white/40 border border-white/5 hover:bg-white/10 hover:text-white' : 'bg-white text-slate-400 border border-slate-200 hover:border-slate-300 hover:text-slate-600'}`}
+                  >
+                    M'avertir
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

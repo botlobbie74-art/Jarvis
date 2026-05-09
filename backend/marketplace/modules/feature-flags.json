@@ -1,0 +1,15 @@
+{
+  "id": "feature-flags",
+  "name": "Feature Flags",
+  "category": "intel",
+  "description": "Système de flags par utilisateur et par plan.",
+  "dependencies": [],
+  "env_required": [],
+  "files_to_inject": [
+    {
+      "path": "src/lib/flags.ts",
+      "template": "flags.ts"
+    }
+  ],
+  "credits_cost": 10
+}

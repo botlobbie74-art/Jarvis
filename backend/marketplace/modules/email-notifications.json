@@ -1,0 +1,15 @@
+{
+  "id": "email-notifications",
+  "name": "Notifications Email",
+  "category": "comm",
+  "description": "SendGrid intégré pour vos emails transactionnels.",
+  "dependencies": ["@sendgrid/mail"],
+  "env_required": ["SENDGRID_API_KEY", "FROM_EMAIL"],
+  "files_to_inject": [
+    {
+      "path": "src/lib/mail.ts",
+      "template": "mail.ts"
+    }
+  ],
+  "credits_cost": 15
+}

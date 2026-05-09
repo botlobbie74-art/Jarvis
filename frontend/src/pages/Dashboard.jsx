@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import api from '../lib/api';
@@ -14,15 +14,15 @@ import ChatView from '../components/ChatView';
 import CodeAgentView from '../components/CodeAgentView';
 import BillingView from '../components/BillingView';
 import PersonasView from '../components/PersonasView';
-import ChiefOfStaffView from '../components/ChiefOfStaffView';
 import { t } from '../lib/i18n';
 
 export default function Dashboard() {
   const { user, logout, loading, refreshUser } = useAuth();
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const [view, setView] = useState('chat');
+  const [view, setView] = useState(() => location.pathname === '/app/billing' ? 'billing' : 'chat');
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
 
@@ -31,6 +31,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (!loading && !user) navigate('/');
   }, [loading, user, navigate]);
+
+  useEffect(() => {
+    if (location.pathname === '/app/billing') setView('billing');
+  }, [location.pathname]);
 
   const loadSessions = async () => {
     try {
@@ -130,7 +134,6 @@ export default function Dashboard() {
           {[
             { id: 'chat', icon: MessageSquare, label: t('dashboard_chat') },
             { id: 'builder', icon: Hammer, label: t('dashboard_build') },
-            { id: 'chief', icon: Sparkles, label: 'Chief of Staff' },
             { id: 'plugins', icon: Puzzle, label: t('dashboard_plugins') },
             { id: 'tasks', icon: ListChecks, label: t('dashboard_habits') },
             { id: 'billing', icon: CreditCard, label: t('dashboard_billing') },
@@ -239,7 +242,6 @@ export default function Dashboard() {
         {view === 'plugins' && <PluginsView />}
         {view === 'tasks' && <TasksView />}
         {view === 'builder' && <CodeAgentView />}
-        {view === 'chief' && <ChiefOfStaffView />}
         {view === 'billing' && <BillingView />}
         {view === 'personas' && <PersonasView />}
       </main>

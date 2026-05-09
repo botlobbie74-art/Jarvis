@@ -1,0 +1,20 @@
+{
+  "id": "auth-google",
+  "name": "Authentification Google",
+  "category": "auth",
+  "description": "OAuth 2.0 Google prêt à l'emploi via Supabase.",
+  "dependencies": ["@supabase/supabase-js"],
+  "env_required": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+  "files_to_inject": [
+    {
+      "path": "src/lib/auth.ts",
+      "template": "auth-google.ts"
+    },
+    {
+      "path": "src/components/LoginButton.tsx", 
+      "template": "login-button.tsx"
+    }
+  ],
+  "supabase_migrations": ["migrations/001_auth_users.sql"],
+  "credits_cost": 10
+}

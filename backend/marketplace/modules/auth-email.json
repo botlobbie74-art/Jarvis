@@ -1,0 +1,15 @@
+{
+  "id": "auth-email",
+  "name": "Auth Email/Password",
+  "category": "auth",
+  "description": "Authentification email et mot de passe sécurisée.",
+  "dependencies": ["@supabase/supabase-js"],
+  "env_required": ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+  "files_to_inject": [
+    {
+      "path": "src/lib/auth-email.ts",
+      "template": "auth-email.ts"
+    }
+  ],
+  "credits_cost": 10
+}

@@ -1,0 +1,15 @@
+{
+  "id": "api-keys",
+  "name": "Gestion Clés API",
+  "category": "intel",
+  "description": "Génération et révocation de clés API pour vos utilisateurs.",
+  "dependencies": ["uuid"],
+  "env_required": [],
+  "files_to_inject": [
+    {
+      "path": "src/lib/api-keys.ts",
+      "template": "api-keys.ts"
+    }
+  ],
+  "credits_cost": 20
+}

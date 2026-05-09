@@ -1,0 +1,18 @@
+{
+  "id": "airtable",
+  "name": "Airtable",
+  "auth_type": "api_key",
+  "base_url": "https://api.airtable.com/v0",
+  "actions": [
+    {
+      "name": "list_records",
+      "method": "GET",
+      "endpoint": "/{base_id}/{table_id}"
+    },
+    {
+      "name": "create_record",
+      "method": "POST",
+      "endpoint": "/{base_id}/{table_id}"
+    }
+  ]
+}

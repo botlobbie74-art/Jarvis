@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
-import { Send, Loader2, Paperclip, X as XIcon, Hammer, MessageSquare, Mic, MousePointer2, Zap, Sparkles } from 'lucide-react';
+import { Send, Loader2, Paperclip, X as XIcon, Hammer, MessageSquare, Mic, MousePointer2, Zap, Sparkles, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { t } from '../lib/i18n';
 import { useToast } from '../hooks/use-toast';
@@ -88,9 +88,10 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
     e.target.value = '';
   };
 
-  const send = async (e) => {
+  const send = async (e, overrideMessage = null) => {
     e?.preventDefault();
-    if (!input.trim() && !attachedFile) return;
+    const draftInput = overrideMessage ?? input;
+    if (!draftInput.trim() && !attachedFile) return;
 
     let sid = sessionId;
     if (!sid) {
@@ -101,8 +102,8 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
       } catch { return; }
     }
 
-    let messageContent = input;
-    if (attachedFile) messageContent = `[File: ${attachedFile.name}]\n${input}`;
+    let messageContent = draftInput;
+    if (attachedFile && !overrideMessage) messageContent = `[File: ${attachedFile.name}]\n${draftInput}`;
 
     const userMsg = { id: 'tmp-' + Date.now(), session_id: sid, role: 'user', content: messageContent, assistant_id: 'jarvis', created_at: new Date().toISOString() };
     setMessages((m) => [...m, userMsg]);
@@ -110,19 +111,100 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
     setAttachedFile(null);
     setSending(true);
     try {
-      const { data } = await api.post('/chat/send', { 
-        session_id: sid, 
-        message: messageContent, 
-        assistant_id: 'jarvis',
-        ultra: ultraMode,
-        preference: preference
-      });
+      // 0. TOOL VERIFICATION
+      setMessages(prev => [...prev, { 
+        id: 'verify-' + Date.now(), 
+        role: 'assistant', 
+        content: "🔌 Vérification des outils...",
+        metadata: { agent_type: 'worker' }
+      }]);
+      const { data: toolStatus } = await api.get('/tools/check');
+      const toolMsg = Object.values(toolStatus).map(t => t.message).join(' ');
+      setMessages(prev => prev.map(m => m.id?.startsWith('verify-') ? { ...m, content: `🔌 Vérification des outils...\n${toolMsg}` } : m));
+      await new Promise(r => setTimeout(r, 800));
 
-      // Check for special actions
-      if (data.builder_action) setBuilderAction(data.builder_action);
-      if (data.metadata?.proactive_action) setProactiveAction(data.metadata.proactive_action);
+      // 1. SILENT MISSION DETECTION
+      setSending(true);
+      const { data: parseData } = await api.post('/chief/parse', { message: messageContent });
+      
+      if (parseData.missions && parseData.missions.length >= 2) {
+        // TRIGGER CHIEF OF STAFF ENGINE
+        const missionsWithIds = parseData.missions.map(m => ({ ...m, id: Math.random().toString(36).substr(2, 9), status: 'pending' }));
+        setMessages((m) => [...m, { 
+          id: 'cos-' + Date.now(), 
+          role: 'assistant', 
+          content: "Compris. Je lance une série de missions pour répondre à votre demande.",
+          metadata: { agent_type: 'chief' },
+          missions: missionsWithIds
+        }]);
+        
+        // Execute missions
+        try {
+          const response = await fetch(`${api.defaults.baseURL}/chief/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('jarvis_token')}` },
+            body: JSON.stringify({ missions: missionsWithIds })
+          });
+          
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (line.trim().startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.trim().substring(6));
+                  if (data.mission_id && data.status) {
+                    setMessages(prev => prev.map(m => {
+                      if (m.missions) {
+                        return {
+                          ...m,
+                          missions: m.missions.map(mis => mis.id === data.mission_id ? { ...mis, status: data.status, preview: data.preview } : mis)
+                        };
+                      }
+                      return m;
+                    }));
+                  } else if (data.type === 'final_report') {
+                    setMessages(prev => prev.map(m => {
+                      if (!m.missions) return m;
+                      return {
+                        ...m,
+                        content: data.report?.summary || m.content,
+                        metadata: {
+                          ...(m.metadata || {}),
+                          post_completion_suggestions: data.suggestions || []
+                        }
+                      };
+                    }));
+                  }
+                } catch (e) {}
+              }
+            }
+          }
+          refreshUser();
+        } catch (e) {
+          toast({ title: 'Chief of Staff Error', variant: 'destructive' });
+        }
+      } else {
+        // NORMAL CHAT PATH
+        const { data } = await api.post('/chat/send', { 
+          session_id: sid, 
+          message: messageContent, 
+          assistant_id: 'jarvis',
+          ultra: ultraMode,
+          preference: preference
+        });
 
-      setMessages((m) => [...m, data]);
+        // Check for special actions
+        if (data.builder_action) setBuilderAction(data.builder_action);
+        if (data.metadata?.proactive_action) setProactiveAction(data.metadata.proactive_action);
+
+        setMessages((m) => [...m, data]);
+      }
       onSessionUpdated?.();
       refreshUser();
     } catch (err) {
@@ -153,6 +235,11 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
   };
 
   const dismissProactiveAction = () => setProactiveAction(null);
+
+  const executeSuggestion = (suggestion) => {
+    if (!suggestion?.action) return;
+    send(null, suggestion.action);
+  };
 
   if (!sessionId && messages.length === 0) {
     return (
@@ -273,6 +360,54 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
                       : `${colors.bg.replace('/10', '/5')} border ${colors.border} text-slate-800 rounded-bl-sm shadow-sm`
                 }`}>
                   <div className="whitespace-pre-wrap">{m.role === 'assistant' ? (m.display_content || m.content) : m.content}</div>
+                  
+                  {m.missions && (
+                    <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
+                      {m.missions.map(mis => (
+                        <div key={mis.id} className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? 'bg-black/40 border-white/5' : 'bg-white/50 border-slate-200'}`}>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                            mis.status === 'done' ? 'bg-emerald-500/20 text-emerald-400' : 
+                            mis.status === 'running' ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/30'
+                          }`}>
+                            {mis.status === 'running' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                             mis.status === 'done' ? <Check className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <div className="text-[12px] font-bold uppercase tracking-wider opacity-40">{mis.type}</div>
+                              {mis.status === 'done' && mis.cost && (
+                                <div className="text-[10px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                                  <Zap className="w-2.5 h-2.5 fill-amber-500" /> -{mis.cost}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-[13px] font-medium truncate">{mis.preview || 'En attente...'}</div>
+                          </div>
+                          {mis.status === 'done' && <div className="text-[10px] font-bold text-emerald-500 px-2 py-0.5 rounded-full bg-emerald-500/10 uppercase">COMPLETED</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {m.role === 'assistant' && metadata.post_completion_suggestions?.length > 0 && (
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 border-t border-white/10 pt-4">
+                      {metadata.post_completion_suggestions.slice(0, 3).map((suggestion, idx) => (
+                        <button
+                          key={`${m.id}-suggestion-${idx}`}
+                          type="button"
+                          onClick={() => executeSuggestion(suggestion)}
+                          className={`text-left rounded-xl border px-3 py-3 transition-all hover:-translate-y-0.5 ${
+                            dark
+                              ? 'bg-black/30 border-white/10 hover:border-cyan-400/40 hover:bg-cyan-400/10'
+                              : 'bg-white/70 border-slate-200 hover:border-cyan-300 hover:bg-cyan-50'
+                          }`}
+                        >
+                          <div className="text-[18px] leading-none mb-2">{suggestion.icon || '✨'}</div>
+                          <div className={`text-[12px] font-bold leading-tight ${dark ? 'text-white' : 'text-slate-900'}`}>{suggestion.title}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

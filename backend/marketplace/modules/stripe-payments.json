@@ -1,0 +1,19 @@
+{
+  "id": "stripe-payments",
+  "name": "Paiements Stripe",
+  "category": "revenue",
+  "description": "Checkout, webhooks et portail client Stripe.",
+  "dependencies": ["stripe", "@stripe/stripe-js"],
+  "env_required": ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"],
+  "files_to_inject": [
+    {
+      "path": "src/lib/stripe.ts",
+      "template": "stripe.ts"
+    },
+    {
+      "path": "src/api/webhooks/stripe.ts", 
+      "template": "stripe-webhook.ts"
+    }
+  ],
+  "credits_cost": 25
+}
