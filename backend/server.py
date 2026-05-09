@@ -100,7 +100,9 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     return res.data[0]
 
 # ============ BILLING (CREDITS) ============
-CREDIT_PRICES = {"1000": 10.0, "2500": 24.99, "5000": 49.99}
+CREDIT_PRICES = {"1000": 9.99, "2500": 24.99, "5000": 49.99}
+PLAN_CREDITS = {"starter": 1000, "pro": 2500, "ultra": 5000}
+PLAN_PRICES = {"starter": STRIPE_PRICE_STARTER, "pro": STRIPE_PRICE_PRO, "ultra": os.environ.get('STRIPE_PRICE_ULTRA', '')}
 TOKEN_TO_CREDIT_RATE = 0.0001
 ULTRA_MULTIPLIER = 10.0
 BUILD_FLAT_FEE = 5.0
@@ -880,7 +882,9 @@ GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/youtube.readonly",
 ]
-GOOGLE_REDIRECT = f"{APP_BASE_URL}/api/auth/google/callback"
+# Use APP_PUBLIC_URL for redirects in production, otherwise localhost
+GOOGLE_REDIRECT = f"{APP_PUBLIC_URL if 'localhost' not in APP_PUBLIC_URL else 'http://localhost:8000'}/api/auth/google/callback"
+GITHUB_REDIRECT = f"{APP_PUBLIC_URL if 'localhost' not in APP_PUBLIC_URL else 'http://localhost:8000'}/api/auth/github/callback"
 _oauth_states: Dict[str, str] = {}  # state -> user_id (in-memory short-lived)
 
 @api_router.get("/auth/google/start")
@@ -905,7 +909,7 @@ async def github_start(user=Depends(get_current_user)):
     client_id = os.environ.get('GITHUB_CLIENT_ID')
     if not client_id: raise HTTPException(400, "GitHub OAuth not configured")
     state = secrets.token_urlsafe(24); _oauth_states[state] = user["id"]
-    params = {"client_id": client_id, "scope": " ".join(["repo", "user", "workflow"]), "state": state}
+    params = {"client_id": client_id, "scope": " ".join(["repo", "user", "workflow"]), "state": state, "redirect_uri": GITHUB_REDIRECT}
     return {"auth_url": f"https://github.com/login/oauth/authorize?{urllib.parse.urlencode(params)}"}
 
 from fastapi.responses import HTMLResponse
@@ -1343,11 +1347,14 @@ async def topup_credits(payload: CreditTopupIn, user=Depends(get_current_user)):
     if not STRIPE_SECRET_KEY:
         raise HTTPException(400, "Stripe not configured")
 
-    credits = payload.amount_credits
-    if credits not in CREDIT_PRICES:
-        raise HTTPException(400, "Invalid credit amount")
+    val = payload.amount_credits
+    is_subscription = val in PLAN_PRICES and PLAN_PRICES[val]
+    
+    if not is_subscription and val not in CREDIT_PRICES:
+        raise HTTPException(400, "Invalid credit amount or plan")
 
-    price_euro = CREDIT_PRICES[credits]
+    price_euro = CREDIT_PRICES.get(val)
+    price_id = PLAN_PRICES.get(val) if is_subscription else None
 
     try:
         sub = sb.table("jarvis_subscriptions").select("*").eq("user_id", user["id"]).execute()
@@ -1357,22 +1364,26 @@ async def topup_credits(payload: CreditTopupIn, user=Depends(get_current_user)):
             customer_id = cust.id
             sb.table("jarvis_subscriptions").upsert({"user_id": user["id"], "stripe_customer_id": customer_id, "plan": "free"}).execute()
 
-        # Create a one-time payment session for the top-up
-        session = stripe.checkout.Session.create(
-            customer=customer_id,
-            mode="payment",
-            line_items=[{
+        # Create checkout session
+        checkout_params = {
+            "customer": customer_id,
+            "mode": "subscription" if is_subscription else "payment",
+            "line_items": [{
+                "price": price_id,
+                "quantity": 1,
+            }] if is_subscription else [{
                 "price_data": {
                     "currency": "eur",
-                    "product_data": {"name": f"{credits} Jarvis Credits"},
+                    "product_data": {"name": f"{val} Jarvis Credits"},
                     "unit_amount": int(price_euro * 100),
                 },
                 "quantity": 1,
             }],
-            success_url=f"{APP_PUBLIC_URL}/app?topup=true",
-            cancel_url=f"{APP_PUBLIC_URL}/pricing",
-            metadata={"user_id": user["id"], "credits": credits},
-        )
+            "success_url": f"{APP_PUBLIC_URL}/app?topup=true",
+            "cancel_url": f"{APP_PUBLIC_URL}/pricing",
+            "metadata": {"user_id": user["id"], "credits": val if not is_subscription else PLAN_CREDITS[val], "plan": val if is_subscription else "free"},
+        }
+        session = stripe.checkout.Session.create(**checkout_params)
         return {"url": session.url}
     except Exception as e:
         raise HTTPException(500, str(e)[:300])
@@ -1623,6 +1634,21 @@ async def reset_persona(assistant_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 # ============ APP ============
+# ============ LIFECYCLE ============
+@app.on_event("startup")
+async def startup_event():
+    if TELEGRAM_BOT_TOKEN:
+        try:
+            webhook_url = f"{APP_PUBLIC_URL}/api/telegram/webhook"
+            if "localhost" in webhook_url:
+                log.warning("Localhost detected in APP_PUBLIC_URL. Telegram webhook will not work unless you use ngrok/tunnel.")
+            async with httpx.AsyncClient() as cli:
+                r = await cli.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
+                                   json={"url": webhook_url})
+                log.info(f"Telegram webhook set: {r.status_code} {r.text}")
+        except Exception as e:
+            log.warning(f"Failed to set Telegram webhook: {e}")
+
 app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
