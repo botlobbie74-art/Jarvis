@@ -152,6 +152,14 @@ export default function Dashboard() {
           })}
         </div>
 
+        <div className={`px-4 py-3 mx-3 mb-4 rounded-2xl border flex items-center justify-between ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
+          <div className="flex items-center gap-2">
+            <Zap className="w-3.5 h-3.5 text-amber-500" />
+            <span className={`text-[12px] font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{user.credits?.toLocaleString() || 0}</span>
+          </div>
+          <button onClick={() => setView('billing')} className="text-[10px] font-bold uppercase tracking-wider text-[#22a3ff] hover:opacity-80 transition-opacity">Top up</button>
+        </div>
+
         <div className={`p-3 border-t flex items-center gap-3 ${dark ? 'border-white/10' : 'border-slate-200'}`}>
           <Avatar className="w-8 h-8">
             <AvatarFallback className="bg-[#22a3ff] text-white text-[12px]">

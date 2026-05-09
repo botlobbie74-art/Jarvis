@@ -266,8 +266,7 @@ export default function CodeAgentView() {
                         <FileCode className={`w-5 h-5 ${dark ? 'text-cyan-400' : 'text-white'}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className={`font-medium truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{p.name}</div>
-                        <div className={`text-[12px] truncate ${dark ? 'text-white/50' : 'text-slate-500'}`}>{p.description}</div>
+                        <div className={`font-semibold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{p.name}</div>
                       </div>
                       <button onClick={() => remove(p.id)} className={`${dark ? 'text-white/40 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`}>
                         <Trash2 className="w-4 h-4" />
@@ -331,9 +330,9 @@ export default function CodeAgentView() {
       </header>
 
       {/* Body: chat left, preview right */}
-      <div className="flex-1 flex min-h-0">
-        {/* Left: chat/activity feed with floating plan */}
-        <div className={`w-[380px] flex-shrink-0 flex flex-col min-h-0 border-r relative ${dark ? 'bg-[#050507] border-white/10' : 'bg-white border-slate-200'}`}>
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* Left: activity feed with floating plan */}
+        <div className={`w-[380px] flex-shrink-0 flex flex-col min-h-0 border-r relative overflow-hidden ${dark ? 'bg-[#050507] border-white/10' : 'bg-white border-slate-200'}`}>
 
           {/* Floating collapsible plan */}
           <div className={`absolute top-4 left-4 right-4 z-20 rounded-2xl border shadow-2xl backdrop-blur-md overflow-hidden transition-all ${dark ? 'border-white/10 bg-[#050507]/95' : 'border-slate-200 bg-white/95'}`}>
@@ -354,7 +353,7 @@ export default function CodeAgentView() {
             </button>
 
             {planOpen && planSteps.length > 0 && (
-              <div className={`max-h-[280px] overflow-y-auto custom-scrollbar px-4 pb-4`}>
+              <div className={`max-h-[160px] overflow-y-auto custom-scrollbar px-4 pb-4`}>
                 {plan.summary && (
                   <p className={`text-[12px] leading-relaxed mb-3 px-1 ${dark ? 'text-white/50' : 'text-slate-500'}`}>{plan.summary}</p>
                 )}
@@ -397,63 +396,79 @@ export default function CodeAgentView() {
           </div>
 
           {/* Activity feed / chat */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar pt-20">
+          <div className="flex-1 overflow-y-auto custom-scrollbar pt-[240px]">
             <div className="px-4 py-3 space-y-2">
               {jobs.length === 0 && !building && (
                 <div className={`text-center py-12 ${dark ? 'text-white/20' : 'text-slate-300'}`}>
                   <Sparkles className="w-8 h-8 mx-auto mb-3 opacity-50" />
                   <p className="text-[13px]">Activity will appear here</p>
                 </div>
-              )}
+              )}               {(() => {
+                const elements = [];
+                let currentGroup = null;
 
-              {jobs.slice(0, 50).map((j) => {
-                const actions = j.result?.actions || [];
-                const role = j.agent_type?.toLowerCase() || 'jarvis';
-                const colors = ROLE_COLORS[role] || ROLE_COLORS.jarvis;
-
-                if (actions.length > 0) {
-                  const groupedByAction = actions.reduce((acc, a) => {
-                    if (!acc[a.action]) acc[a.action] = [];
-                    acc[a.action].push(a.path);
-                    return acc;
-                  }, {});
-                  
-                  return Object.entries(groupedByAction).map(([actionName, paths], i) => (
-                    <details key={`${j.id}-${i}`} className={`group p-3 rounded-xl ${dark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-slate-50 hover:bg-slate-100'} transition-colors cursor-pointer`}>
+                const flushGroup = () => {
+                  if (!currentGroup) return;
+                  const colors = ROLE_COLORS[currentGroup.role] || ROLE_COLORS.jarvis;
+                  elements.push(
+                    <details key={`group-${currentGroup.id}`} className={`group p-3 rounded-xl ${dark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-slate-50 hover:bg-slate-100'} transition-colors cursor-pointer`}>
                       <summary className="flex items-center gap-3 list-none">
                         <div className={`w-2 h-2 rounded-full flex-shrink-0 ${colors.dot} shadow-sm`} />
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                           <span className={`text-[11px] font-semibold ${colors.text}`}>{colors.label}</span>
-                          <span className={`text-[11px] font-medium ${dark ? 'text-white/70' : 'text-slate-600'}`}>{actionName} {paths.length} file{paths.length > 1 ? 's' : ''}</span>
+                          <span className={`text-[11px] font-medium ${dark ? 'text-white/70' : 'text-slate-600'}`}>{currentGroup.type} {currentGroup.paths.length} file{currentGroup.paths.length > 1 ? 's' : ''}</span>
                           <ChevronDown className="w-3 h-3 opacity-40 group-open:rotate-180 transition-transform" />
-                          <span className={`text-[10px] ml-auto ${dark ? 'text-white/20' : 'text-slate-300'}`}>{new Date(j.finished_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className={`text-[10px] ml-auto ${dark ? 'text-white/20' : 'text-slate-300'}`}>{new Date(currentGroup.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </summary>
                       <div className="mt-2 pl-5 space-y-1">
-                        {paths.map(path => (
-                          <code key={path} className={`text-[11px] font-mono block truncate ${dark ? 'text-fuchsia-400/70' : 'text-fuchsia-600'}`}>{path}</code>
+                        {currentGroup.paths.map((p, idx) => (
+                          <code key={idx} className={`text-[11px] font-mono block truncate ${dark ? 'text-fuchsia-400/70' : 'text-fuchsia-600'}`}>{p}</code>
                         ))}
                       </div>
                     </details>
-                  ));
-                }
+                  );
+                  currentGroup = null;
+                };
 
-                return (
-                  <div key={j.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${dark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'} transition-colors`}>
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      j.status === 'done' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]'
-                      : j.status === 'processing' ? 'bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.5)]'
-                      : j.status === 'failed' ? 'bg-red-400' : dark ? 'bg-white/20' : 'bg-slate-300'
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[11px] font-semibold ${colors.text}`}>{colors.label}</span>
-                        <span className={`text-[11px] truncate ${dark ? 'text-white/40' : 'text-slate-500'}`}>{j.payload?.purpose || j.payload?.path || j.payload?.instruction || '...'}</span>
+                jobs.forEach((j) => {
+                  const actions = j.result?.actions || [];
+                  const role = j.agent_type?.toLowerCase() || 'jarvis';
+                  
+                  // If it's a simple file action, try to group it
+                  if (actions.length > 0) {
+                    const actionType = actions[0].action; // 'created' or 'edited'
+                    const paths = actions.map(a => a.path);
+
+                    if (currentGroup && currentGroup.role === role && currentGroup.type === actionType) {
+                      currentGroup.paths.push(...paths);
+                    } else {
+                      flushGroup();
+                      currentGroup = { id: j.id, role, type: actionType, paths, time: j.finished_at };
+                    }
+                  } else {
+                    flushGroup();
+                    const colors = ROLE_COLORS[role] || ROLE_COLORS.jarvis;
+                    elements.push(
+                      <div key={j.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${dark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'} transition-colors`}>
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                          j.status === 'done' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]'
+                          : j.status === 'processing' ? 'bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.5)]'
+                          : j.status === 'failed' ? 'bg-red-400' : dark ? 'bg-white/20' : 'bg-slate-300'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[11px] font-semibold ${colors.text}`}>{colors.label}</span>
+                            <span className={`text-[11px] truncate ${dark ? 'text-white/40' : 'text-slate-500'}`}>{j.payload?.purpose || j.payload?.path || j.payload?.instruction || '...'}</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  }
+                });
+                flushGroup();
+                return elements;
+              })()})}
 
               <div ref={chatEndRef} />
             </div>

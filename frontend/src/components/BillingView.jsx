@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { Loader2, CreditCard, Check, Crown, Zap, Sparkles, ExternalLink } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { useTheme } from '../context/ThemeContext';
 
 const PLAN_INFO = {
   free:    { name: 'Free', color: '#64748b' },
-  starter: { name: 'Starter', color: '#06b6d4' },
-  pro:     { name: 'Pro', color: '#8b5cf6' },
+  starter: { name: 'Pro Builder', color: '#06b6d4' },
+  pro:     { name: 'Elite Agent', color: '#8b5cf6' },
+  elite:   { name: 'Elite Agent +', color: '#f59e0b' },
 };
 
 export default function BillingView() {
@@ -15,6 +17,8 @@ export default function BillingView() {
   const [pending, setPending] = useState(null);
   const [autoTopup, setAutoTopup] = useState(false);
   const { toast } = useToast();
+  const { theme } = useTheme();
+  const dark = theme === 'dark';
 
   const load = async () => {
     setLoading(true);
@@ -129,10 +133,31 @@ export default function BillingView() {
           </div>
         </div>
 
-        {/* Plans are now legacy, everything is credit-based */}
-        <div className="bg-slate-100 rounded-2xl p-6 border border-slate-200 text-center">
-          <p className="text-slate-500 text-[13px]">
-            We have moved to a flexible credit system. Your legacy plan is still active, but all new usage is billed via credits.
+        {/* Monthly Subscription Plans */}
+        <div className="mb-10">
+          <h2 className={`text-[18px] font-semibold mb-3 ${dark ? 'text-white' : 'text-slate-900'}`}>Monthly Plans</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <UpgradeCard 
+              name="Pro Builder" price="9.99" dark={dark}
+              features={["5,000 monthly credits", "Basic AI Agents", "Standard Support"]} 
+              onClick={() => topup('starter')} // In a real app, this would be a subscription checkout
+            />
+            <UpgradeCard 
+              name="Elite Agent" price="24.99" dark={dark} highlight
+              features={["15,000 monthly credits", "Ultra-Smart Mode", "Priority Support", "Advanced Custom Personas"]} 
+              onClick={() => topup('pro')}
+            />
+            <UpgradeCard 
+              name="Elite Agent +" price="49.99" dark={dark}
+              features={["40,000 monthly credits", "Multimodal Agents", "Direct API Access", "24/7 VIP Support"]} 
+              onClick={() => topup('elite')}
+            />
+          </div>
+        </div>
+
+        <div className={`rounded-2xl p-6 border text-center ${dark ? 'bg-white/5 border-white/10 text-white/40' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
+          <p className="text-[13px]">
+            Subscription payments are coming soon. For now, please use the credit top-ups above to fuel your agents.
           </p>
         </div>
       </div>
@@ -140,19 +165,35 @@ export default function BillingView() {
   );
 }
 
-const UpgradeCard = ({ name, price, features, onClick, pending, highlight }) => (
-  <div className={`rounded-2xl p-6 border relative ${highlight ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-200'}`}>
-    {highlight && <div className="absolute -top-2.5 right-4 bg-cyan-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase">Popular</div>}
-    <div className="flex items-center gap-2 mb-2">
-      {highlight ? <Zap className="w-4 h-4 text-cyan-400" /> : <Sparkles className="w-4 h-4 text-cyan-600" />}
-      <span className="font-semibold">{name}</span>
+const UpgradeCard = ({ name, price, features, onClick, pending, highlight, dark }) => (
+  <div className={`rounded-2xl p-8 border transition-all hover:scale-[1.02] relative ${
+    highlight 
+      ? dark ? 'bg-[#22a3ff] text-white border-[#22a3ff]' : 'bg-slate-900 text-white border-slate-900' 
+      : dark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'
+  }`}>
+    {highlight && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl">Best Value</div>}
+    <div className="flex items-center gap-2 mb-3">
+      {highlight ? <Zap className="w-5 h-5 text-white" /> : <Sparkles className={`w-5 h-5 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`} />}
+      <span className="font-bold text-[18px]">{name}</span>
     </div>
-    <div className="flex items-baseline gap-1 mb-1"><span className="text-[32px] font-bold">${price}</span><span className={highlight ? 'text-slate-300' : 'text-slate-500'}>/mo</span></div>
-    <ul className="my-4 space-y-1.5">
-      {features.map((f) => <li key={f} className="flex items-center gap-1.5 text-[13px]"><Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />{f}</li>)}
+    <div className="flex items-baseline gap-1 mb-6">
+      <span className="text-[42px] font-bold">€{price}</span>
+      <span className={highlight ? 'text-white/60' : 'text-slate-500'}>/mo</span>
+    </div>
+    <ul className="mb-8 space-y-3">
+      {features.map((f) => (
+        <li key={f} className="flex items-center gap-2.5 text-[14px]">
+          <Check className={`w-4 h-4 flex-shrink-0 ${highlight ? 'text-white' : 'text-emerald-500'}`} />
+          <span className={highlight ? 'text-white/90' : dark ? 'text-white/70' : 'text-slate-600'}>{f}</span>
+        </li>
+      ))}
     </ul>
-    <button onClick={onClick} disabled={pending} className={`w-full h-10 rounded-lg font-medium transition-colors disabled:opacity-60 ${highlight ? 'bg-white text-slate-900 hover:bg-slate-100' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
-      {pending ? 'Loading...' : `Upgrade to ${name}`}
+    <button onClick={onClick} disabled={pending} className={`w-full h-12 rounded-xl font-bold text-[14px] transition-all disabled:opacity-60 shadow-lg ${
+      highlight 
+        ? 'bg-white text-[#22a3ff] hover:bg-slate-100 shadow-white/10' 
+        : dark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'
+    }`}>
+      {pending ? 'Loading...' : `Get Started`}
     </button>
   </div>
 );
