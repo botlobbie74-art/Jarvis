@@ -78,39 +78,74 @@ export default function Dashboard() {
   return (
     <div className={`min-h-screen flex ${dark ? 'bg-black' : 'bg-white'}`}>
       {/* Sidebar */}
-      <aside className={`w-[280px] border-r flex flex-col ${dark ? 'bg-black border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-        <div className={`p-4 border-b flex items-center gap-2 ${dark ? 'border-white/10' : 'border-slate-200'}`}>
-          <WingmanFace size={36} />
-          <div className="flex-1">
-            <div className={`text-[14px] font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>Jarvis</div>
-            <div className={`text-[11px] ${dark ? 'text-white/40' : 'text-slate-500'}`}>Autonomous AI</div>
+      <aside className={`w-[260px] border-r flex flex-col backdrop-blur-xl ${dark ? 'bg-black/80 border-white/5' : 'bg-slate-50/80 border-slate-200'}`}>
+        <div className={`p-6 flex items-center gap-3 ${dark ? 'text-white' : 'text-slate-900'}`}>
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-fuchsia-600 flex items-center justify-center text-white shadow-lg">
+            <WingmanFace size={20} />
           </div>
-          <button onClick={toggle} className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-white/40 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-200'}`}>
-            {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          <div className="flex-1">
+            <div className="text-[15px] font-bold tracking-tight">Jarvis</div>
+            <div className={`text-[10px] uppercase tracking-widest font-medium opacity-40`}>Engineering AI</div>
+          </div>
+          <button onClick={toggle} className={`p-1.5 rounded-lg transition-all ${dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-200'}`}>
+            {dark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </button>
         </div>
 
-        <div className="px-3 py-3 space-y-1">
-          {[
-            { id: 'chat', icon: MessageSquare, label: 'Chats' },
-            { id: 'builder', icon: Hammer, label: 'Build apps' },
-            { id: 'plugins', icon: Puzzle, label: 'Plugins' },
-            { id: 'tasks', icon: ListChecks, label: 'Background tasks' },
-            { id: 'billing', icon: CreditCard, label: 'Billing' },
-            { id: 'personas', icon: SettingsIcon, label: 'Custom instructions' },
-          ].map(({ id, icon: Icon, label }) => (
-            <button
-              key={id}
-              onClick={() => setView(id)}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[14px] transition-colors ${
-                view === id
-                  ? dark ? 'bg-white/10 text-white' : 'bg-slate-900 text-white'
-                  : dark ? 'text-white/60 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-              }`}
+        <div className="p-4 border-b border-white/10">
+          <div className="mb-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[14px] font-bold">
+                <span className={dark ? 'text-white' : 'text-slate-900'}>Crédits</span>
+                <SettingsIcon className={`w-3.5 h-3.5 ${dark ? 'text-white/30' : 'text-slate-400'}`} />
+              </div>
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${dark ? 'bg-white/10' : 'bg-slate-100'}`}>
+                <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center">
+                  <Sparkles className="w-3 h-3 text-white" />
+                </div>
+                <span className={`text-[13px] font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{user.credits?.toLocaleString() || 0}</span>
+              </div>
+            </div>
+            <button 
+              onClick={() => setView('billing')}
+              className="w-full h-10 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-[#451a03] font-bold text-[13px] flex items-center justify-center gap-2 transition-colors shadow-sm"
             >
-              <Icon className="w-4 h-4" /> {label}
+              <div className="w-5 h-5 rounded-full bg-[#451a03]/10 flex items-center justify-center">
+                <Sparkles className="w-3 h-3 text-[#451a03]" />
+              </div>
+              Acheter des crédits
             </button>
-          ))}
+          </div>
+        </div>
+
+        <div className="px-3 py-4 space-y-0.5">
+          {[
+            { id: 'chat', icon: MessageSquare, label: 'Journal' },
+            { id: 'builder', icon: Hammer, label: 'Forge' },
+            { id: 'plugins', icon: Puzzle, label: 'Modules' },
+            { id: 'tasks', icon: ListChecks, label: 'Processes' },
+            { id: 'billing', icon: CreditCard, label: 'Treasury' },
+            { id: 'personas', icon: SettingsIcon, label: 'Directives' },
+          ].map(({ id, icon: Icon, label }) => {
+            const active = view === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setView(id)}
+                className={`group relative w-full flex items-center gap-3 px-3 h-9 rounded-md text-[13px] font-medium transition-all ${
+                  active
+                    ? dark ? 'text-white bg-white/5' : 'text-slate-900 bg-slate-200/50'
+                    : dark ? 'text-white/40 hover:text-white/60 hover:bg-white/[0.02]' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
+                }`}
+              >
+                {active && (
+                  <div className="absolute left-0 w-0.5 h-4 bg-blue-500 rounded-full" />
+                )}
+                <Icon className={`w-4 h-4 transition-transform group-hover:scale-110 ${active ? 'text-blue-500' : ''}`} /> 
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="px-3 pb-2 flex items-center justify-between">
@@ -125,7 +160,9 @@ export default function Dashboard() {
         </div>
         <div className="flex-1 overflow-y-auto px-2">
           {sessions.length === 0 && (
-            <div className={`text-[12px] px-3 py-4 ${dark ? 'text-white/30' : 'text-slate-400'}`}>No chats yet. Click + to start.</div>
+            <div className={`text-[12px] px-4 py-8 text-center italic opacity-30 ${dark ? 'text-white' : 'text-slate-600'}`}>
+              Your future big ideas will appear here.
+            </div>
           )}
           {sessions.map((s) => {
             const a = ASSISTANTS.find((x) => x.id === s.assistant_id) || ASSISTANTS[0];
@@ -158,13 +195,7 @@ export default function Dashboard() {
           })}
         </div>
 
-        <div className={`px-4 py-3 mx-3 mb-4 rounded-2xl border flex items-center justify-between ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
-          <div className="flex items-center gap-2">
-            <Zap className="w-3.5 h-3.5 text-amber-500" />
-            <span className={`text-[12px] font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{user.credits?.toLocaleString() || 0}</span>
-          </div>
-          <button onClick={() => setView('billing')} className="text-[10px] font-bold uppercase tracking-wider text-[#22a3ff] hover:opacity-80 transition-opacity">Top up</button>
-        </div>
+
 
         <div className={`p-3 border-t flex items-center gap-3 ${dark ? 'border-white/10' : 'border-slate-200'}`}>
           <Avatar className="w-8 h-8">

@@ -14,19 +14,19 @@ const BotAvatar = ({ size = 40, dark = true }) => (
 );
 
 const ROLE_COLORS = {
-  'ceo': { bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20', icon: 'text-amber-500' },
-  'planner': { bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20', icon: 'text-amber-500' },
-  'cto': { bg: 'bg-purple-500/10', text: 'text-purple-500', border: 'border-purple-500/20', icon: 'text-purple-500' },
-  'architect': { bg: 'bg-purple-500/10', text: 'text-purple-500', border: 'border-purple-500/20', icon: 'text-purple-500' },
-  'backend': { bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/20', icon: 'text-blue-500' },
-  'frontend': { bg: 'bg-pink-500/10', text: 'text-pink-500', border: 'border-pink-500/20', icon: 'text-pink-500' },
-  'security': { bg: 'bg-red-500/10', text: 'text-red-500', border: 'border-red-500/20', icon: 'text-red-500' },
-  'infra': { bg: 'bg-cyan-500/10', text: 'text-cyan-500', border: 'border-cyan-500/20', icon: 'text-cyan-500' },
-  'ux': { bg: 'bg-orange-500/10', text: 'text-orange-500', border: 'border-orange-500/20', icon: 'text-orange-500' },
-  'pm': { bg: 'bg-orange-500/10', text: 'text-orange-500', border: 'border-orange-500/20', icon: 'text-orange-500' },
-  'qa': { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20', icon: 'text-emerald-500' },
-  'tester': { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20', icon: 'text-emerald-500' },
-  'jarvis': { bg: 'bg-sky-500/10', text: 'text-sky-500', border: 'border-sky-500/20', icon: 'text-sky-500' },
+  'ceo': { bg: 'bg-amber-500/5', text: 'text-amber-400', border: 'border-amber-500/10', icon: 'text-amber-400' },
+  'planner': { bg: 'bg-amber-500/5', text: 'text-amber-400', border: 'border-amber-500/10', icon: 'text-amber-400' },
+  'cto': { bg: 'bg-indigo-500/5', text: 'text-indigo-400', border: 'border-indigo-500/10', icon: 'text-indigo-400' },
+  'architect': { bg: 'bg-indigo-500/5', text: 'text-indigo-400', border: 'border-indigo-500/10', icon: 'text-indigo-400' },
+  'backend': { bg: 'bg-blue-500/5', text: 'text-blue-400', border: 'border-blue-500/10', icon: 'text-blue-400' },
+  'frontend': { bg: 'bg-fuchsia-500/5', text: 'text-fuchsia-400', border: 'border-fuchsia-500/10', icon: 'text-fuchsia-400' },
+  'security': { bg: 'bg-rose-500/5', text: 'text-rose-400', border: 'border-rose-500/10', icon: 'text-rose-400' },
+  'infra': { bg: 'bg-emerald-500/5', text: 'text-emerald-400', border: 'border-emerald-500/10', icon: 'text-emerald-400' },
+  'ux': { bg: 'bg-orange-500/5', text: 'text-orange-400', border: 'border-orange-500/10', icon: 'text-orange-400' },
+  'pm': { bg: 'bg-orange-500/5', text: 'text-orange-400', border: 'border-orange-500/10', icon: 'text-orange-400' },
+  'qa': { bg: 'bg-emerald-500/5', text: 'text-emerald-400', border: 'border-emerald-500/10', icon: 'text-emerald-400' },
+  'tester': { bg: 'bg-emerald-500/5', text: 'text-emerald-400', border: 'border-emerald-500/10', icon: 'text-emerald-400' },
+  'jarvis': { bg: 'bg-sky-500/5', text: 'text-sky-400', border: 'border-sky-500/10', icon: 'text-sky-400' },
 };
 
 export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpenBuilder }) {
@@ -151,7 +151,15 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
               "Explain my latest project",
               "Add a feature to my app",
             ].map((s) => (
-              <button key={s} onClick={() => setInput(s)} className={`px-4 py-2 rounded-full text-[13px] transition-colors border ${dark ? 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10' : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
+              <button 
+                key={s} 
+                onClick={() => setInput(s)} 
+                className={`px-4 py-2 rounded-full text-[13px] font-medium transition-all border ${
+                  dark 
+                    ? 'bg-white/[0.03] border-white/5 text-white/40 hover:text-white hover:bg-white/[0.08] hover:border-white/10 hover:shadow-[0_0_15px_rgba(255,255,255,0.03)]' 
+                    : 'bg-slate-50 border-slate-200/50 text-slate-500 hover:text-slate-900 hover:bg-white hover:shadow-md'
+                }`}
+              >
                 {s}
               </button>
             ))}
@@ -306,27 +314,33 @@ const ChatComposer = ({ input, setInput, send, sending, attachedFile, onAttach, 
         <button type="button" onClick={onRemoveFile} className={`${dark ? 'text-white/30 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}><XIcon className="w-3.5 h-3.5" /></button>
       </div>
     )}
-    <div className={`max-w-3xl mx-auto flex items-end gap-2 border rounded-2xl px-4 py-2 ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-      <button type="button" onClick={onAttach} title="Attach file" className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors flex-shrink-0 mb-1 ${dark ? 'text-white/40 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-200'}`}>
-        <Paperclip className="w-4 h-4" />
-      </button>
-      <button type="button" onMouseDown={onStartRecording} onMouseUp={onStopRecording} onMouseLeave={onStopRecording}
-        title="Hold to speak" 
-        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 mb-1 ${recording ? 'bg-red-500 text-white animate-pulse' : dark ? 'text-white/40 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-200'}`}>
-        <Mic className="w-4 h-4" />
-      </button>
-      <textarea
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e); } }}
-        placeholder="Ask Jarvis anything… (Shift+Enter for newline)"
-        rows={1}
-        className={`flex-1 bg-transparent outline-none resize-none text-[14px] py-2 max-h-40 ${dark ? 'text-white placeholder:text-white/30' : 'text-slate-800 placeholder:text-slate-400'}`}
-      />
-      <button type="submit" disabled={sending || !input.trim()} className="w-9 h-9 rounded-xl bg-[#22a3ff] hover:bg-[#1a8de8] text-white flex items-center justify-center disabled:opacity-40 transition-colors flex-shrink-0 mb-1">
-        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-      </button>
+    <div className={`max-w-3xl mx-auto relative group`}>
+      <div className={`absolute -inset-1 rounded-[22px] bg-gradient-to-r from-blue-500 to-fuchsia-600 opacity-0 group-focus-within:opacity-20 blur-xl transition-opacity duration-500`} />
+      <div className={`relative flex items-end gap-2 border rounded-[20px] px-4 py-3 shadow-2xl transition-all duration-300 backdrop-blur-xl ${
+        dark 
+          ? 'bg-black/60 border-white/5 group-focus-within:border-white/10' 
+          : 'bg-white/80 border-slate-200 group-focus-within:border-slate-300'
+      }`}>
+        <button type="button" onClick={onAttach} title="Attach file" className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
+          <Paperclip className="w-4 h-4" />
+        </button>
+        <button type="button" onMouseDown={onStartRecording} onMouseUp={onStopRecording} onMouseLeave={onStopRecording}
+          title="Hold to speak" 
+          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${recording ? 'bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse' : dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
+          <Mic className="w-4 h-4" />
+        </button>
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e); } }}
+          placeholder="What's the next directive?"
+          rows={1}
+          className={`flex-1 bg-transparent outline-none resize-none text-[15px] font-medium py-2 max-h-40 ${dark ? 'text-white placeholder:text-white/20' : 'text-slate-800 placeholder:text-slate-400'}`}
+        />
+        <button type="submit" disabled={sending || !input.trim()} className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center disabled:opacity-20 transition-all transform active:scale-90 shadow-lg shadow-blue-500/20">
+          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        </button>
+      </div>
     </div>
   </form>
 );
-

@@ -39,6 +39,9 @@ export default function CodeAgentView() {
   const [autoBuild, setAutoBuild] = useState(true);
   const [ultraMode, setUltraMode] = useState(false);
   const [view, setView] = useState('preview'); // 'preview' or 'code'
+  const [deployModal, setDeployModal] = useState(false);
+  const [deploySubdomain, setDeploySubdomain] = useState('');
+  const [deployResult, setDeployResult] = useState(null);
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
   const { toast } = useToast();
@@ -158,17 +161,15 @@ export default function CodeAgentView() {
 
   const pushGithub = async () => {
     setPushing(true);
+    setDeployResult(null);
     try {
-      const { data } = await api.post(`/projects/${active.project.id}/push-github`);
-      if (data.live_url) {
-        toast({ title: 'Deployed to Vercel & GitHub', description: `Live at: ${data.live_url}` });
-        window.open(data.live_url, '_blank');
-      } else {
-        toast({ title: 'Pushed to GitHub', description: data.github_url });
-      }
+      const { data } = await api.post(`/projects/${active.project.id}/push-github`, { subdomain: deploySubdomain });
+      setDeployResult(data);
+      toast({ title: 'Deploy Successful!' });
     } catch (e) {
-      toast({ title: 'GitHub push failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
-    } finally { setPushing(false); setShowRepoMenu(false); }
+      toast({ title: 'Deployment failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
+      setDeployModal(false);
+    } finally { setPushing(false); }
   };
 
   const downloadZip = async () => {
@@ -199,8 +200,9 @@ export default function CodeAgentView() {
           </button>
         </div>
         <div className="relative z-10 max-w-4xl mx-auto px-6 pt-32 pb-10">
-          <h1 className={`text-center font-semibold tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`} style={{ fontSize: 'clamp(40px, 7vw, 84px)', lineHeight: 1.05 }}>
-            What can I do for you today?
+          <h1 className={`text-center font-[800] tracking-tighter ${dark ? 'text-white' : 'text-slate-900'}`} style={{ fontSize: 'clamp(44px, 8vw, 96px)', lineHeight: 0.95 }}>
+            Forging<br />
+            <span className="text-slate-400">the future.</span>
           </h1>
           <div className={`mt-16 rounded-3xl border shadow-2xl transition-all ${dark ? 'bg-[#0a0a0c] border-white/10' : 'bg-white border-slate-200'}`}>
             {attachedFile && (
@@ -318,8 +320,11 @@ export default function CodeAgentView() {
           <button onClick={() => setView('preview')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'preview' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Preview</button>
           <button onClick={() => setView('code')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'code' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Code</button>
           <button onClick={downloadZip} className="h-8 px-3 rounded-lg text-[12px] font-semibold text-slate-500 hover:text-slate-700 transition-all flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />ZIP</button>
-          <button onClick={pushGithub} disabled={pushing} className="h-8 px-4 rounded-lg text-[12px] font-bold bg-slate-900 dark:bg-white text-white dark:text-black hover:opacity-90 transition-all flex items-center gap-1.5">
-            {pushing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />}
+          <a href={active.project.github_url} target="_blank" rel="noopener noreferrer" className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all flex items-center gap-1.5 ${active.project.github_url ? 'text-slate-500 hover:text-slate-700' : 'hidden'}`}>
+            <Github className="w-3.5 h-3.5" />GitHub
+          </a>
+          <button onClick={() => { setDeployModal(true); setDeployResult(null); }} disabled={pushing} className="h-8 px-4 rounded-lg text-[12px] font-bold bg-slate-900 dark:bg-white text-white dark:text-black hover:opacity-90 transition-all flex items-center gap-1.5">
+            <Rocket className="w-3.5 h-3.5" />
             Deploy
           </button>
         </div>
@@ -404,6 +409,8 @@ export default function CodeAgentView() {
                   <p className="text-[13px]">Activity will appear here</p>
                 </div>
               )}               {(() => {
+              )}
+              {(() => {
                 const elements = [];
                 let currentGroup = null;
 
@@ -411,23 +418,26 @@ export default function CodeAgentView() {
                   if (!currentGroup) return;
                   const colors = ROLE_COLORS[currentGroup.role] || ROLE_COLORS.jarvis;
                   elements.push(
-                    <details key={`group-${currentGroup.id}`} className={`group p-3 rounded-xl ${dark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-slate-50 hover:bg-slate-100'} transition-colors cursor-pointer border border-transparent hover:border-slate-200/50`}>
+                    <details key={`group-${currentGroup.id}`} className={`group p-3 rounded-xl ${dark ? 'bg-white/[0.02] hover:bg-white/[0.04]' : 'bg-slate-50 hover:bg-slate-100'} transition-all cursor-pointer border border-transparent hover:border-white/5`}>
                       <summary className="flex items-center gap-3 list-none">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-white/5' : 'bg-white shadow-sm border border-slate-100'}`}>
-                          <WingmanFace size={18} />
+                          <WingmanFace size={16} />
                         </div>
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                           <div>
-                            <div className={`text-[11px] font-bold ${colors.text}`}>{colors.label}</div>
-                            <div className={`text-[11px] font-medium ${dark ? 'text-white/70' : 'text-slate-600'}`}>{currentGroup.type} {currentGroup.paths.length} file{currentGroup.paths.length > 1 ? 's' : ''}</div>
+                            <div className={`text-[10px] font-bold uppercase tracking-widest ${colors.text}`}>{colors.label}</div>
+                            <div className={`text-[12px] font-semibold ${dark ? 'text-white/80' : 'text-slate-700'}`}>{currentGroup.type} {currentGroup.paths.length} file{currentGroup.paths.length > 1 ? 's' : ''}</div>
                           </div>
-                          <ChevronDown className="w-3 h-3 opacity-40 group-open:rotate-180 transition-transform ml-1" />
-                          <span className={`text-[10px] ml-auto ${dark ? 'text-white/20' : 'text-slate-300'}`}>{new Date(currentGroup.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <ChevronDown className="w-3 h-3 opacity-20 group-open:rotate-180 transition-transform ml-1" />
+                          <span className={`text-[10px] ml-auto font-mono opacity-20`}>{new Date(currentGroup.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                         </div>
                       </summary>
-                      <div className="mt-3 pl-11 space-y-1">
+                      <div className="mt-3 pl-11 space-y-1.5 pb-2">
                         {currentGroup.paths.map((p, idx) => (
-                          <code key={idx} className={`text-[11px] font-mono block truncate ${dark ? 'text-fuchsia-400/70' : 'text-fuchsia-600'}`}>{p}</code>
+                          <div key={idx} className="flex items-center gap-2">
+                            <div className="w-1 h-1 rounded-full bg-blue-500/40" />
+                            <code className={`text-[11px] font-mono truncate ${dark ? 'text-blue-400/60' : 'text-blue-600'}`}>{p}</code>
+                          </div>
                         ))}
                       </div>
                     </details>
@@ -553,6 +563,80 @@ export default function CodeAgentView() {
           </div>
         </div>
       </div>
+      {/* Deploy Modal */}
+      {deployModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className={`w-full max-w-md rounded-3xl shadow-2xl border p-8 ${dark ? 'bg-[#0a0a0c] border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+            {!deployResult ? (
+              <>
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center">
+                    <Rocket className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-[18px] font-bold tracking-tight">Deploy to Production</h3>
+                    <p className={`text-[13px] opacity-40`}>Your app will be live on Vercel</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 mb-8">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-widest opacity-40 mb-2">Subdomain</label>
+                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'} focus-within:ring-2 focus-within:ring-blue-500/50`}>
+                      <input 
+                        value={deploySubdomain} 
+                        onChange={(e) => setDeploySubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                        placeholder="my-awesome-app" 
+                        className="bg-transparent outline-none flex-1 text-[15px] font-medium" 
+                      />
+                      <span className="text-[14px] font-bold opacity-30">.jarvisagent.app</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setDeployModal(false)}
+                    className={`flex-1 h-12 rounded-xl font-bold text-[14px] transition-colors ${dark ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={pushGithub}
+                    disabled={pushing || !deploySubdomain}
+                    className="flex-[2] h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 disabled:opacity-30 transition-all"
+                  >
+                    {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
+                    {pushing ? 'Deploying...' : 'Confirm Deploy'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-6 animate-in zoom-in-50 duration-500">
+                  <Check className="w-10 h-10 text-emerald-500" />
+                </div>
+                <h3 className="text-[22px] font-[800] tracking-tighter mb-2">Build Successful!</h3>
+                <p className={`text-[14px] opacity-40 mb-8`}>Your app is live and ready for the world.</p>
+                
+                <div className={`p-4 rounded-2xl mb-8 border ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-1">Live URL</div>
+                  <a href={deployResult.live_url} target="_blank" rel="noopener noreferrer" className="text-[16px] font-bold text-blue-500 hover:underline break-all">
+                    {deployResult.live_url}
+                  </a>
+                </div>
+
+                <button 
+                  onClick={() => setDeployModal(false)}
+                  className="w-full h-12 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-black font-bold text-[14px] transition-opacity hover:opacity-90"
+                >
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

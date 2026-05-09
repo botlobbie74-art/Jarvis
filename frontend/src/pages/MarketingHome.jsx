@@ -74,14 +74,14 @@ export default function MarketingHome() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,163,255,0.05),transparent_50%)]" />
         <div className="relative max-w-6xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 bg-slate-900/5 border border-slate-200 rounded-full px-4 py-1.5 text-[13px] font-medium text-slate-700 mb-10 hover:bg-slate-900/10 transition-colors cursor-default">
-            <Sparkles className="w-4 h-4 text-cyan-500" /> Professional AI Infrastructure
+            <Sparkles className="w-4 h-4 text-cyan-500" /> Autonomous AI Engineer
           </div>
           <h1 className="text-[64px] md:text-[96px] font-[800] tracking-tighter text-slate-900 leading-[0.95] mb-8">
-            Your Digital Twin.<br />
-            <span className="text-slate-400">Not a Bot.</span>
+            Your autonomous<br />
+            <span className="text-slate-400">AI co-worker.</span>
           </h1>
           <p className="mt-8 text-[20px] md:text-[22px] text-slate-500 max-w-2xl mx-auto leading-relaxed">
-            Scale your productivity, not your workload. The first autonomous AI agent that actually <span className="text-slate-900 font-semibold">understands your business</span> before it speaks.
+            Jarvis builds your apps, runs your tasks, browses the web, manages your Google Workspace — and pushes everything to your GitHub. <span className="text-slate-900 font-semibold">All on its own.</span>
           </p>
           <div className="mt-12 flex flex-col md:flex-row items-center justify-center gap-4">
             <button onClick={() => navigate('/login?signup=1')} className="h-14 px-10 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-[16px] flex items-center gap-2 transition-all hover:scale-105 shadow-2xl shadow-slate-900/20">
@@ -103,13 +103,13 @@ export default function MarketingHome() {
       <section id="features" className="py-32">
         <div className="max-w-6xl mx-auto px-6">
           <div className="mb-20">
-            <div className="inline-block px-3 py-1 rounded-lg bg-red-50 text-red-600 text-[12px] font-bold uppercase tracking-wider mb-6">Visual Intelligence</div>
+            <div className="inline-block px-3 py-1 rounded-lg bg-cyan-50 text-cyan-600 text-[12px] font-bold uppercase tracking-wider mb-6">Autonomous Engineering</div>
             <h2 className="text-[48px] md:text-[64px] font-bold text-slate-900 tracking-tighter leading-[0.95]">
-              Jarvis doesn't just read text.<br />
-              <span className="text-slate-400">He understands your vision.</span>
+              Jarvis doesn't just code.<br />
+              <span className="text-slate-400">He builds the future.</span>
             </h2>
             <p className="mt-8 text-slate-500 text-[18px] max-w-2xl leading-relaxed">
-              It transcribes your ideas, analyzes the context, and plans the entire architecture before composing a single word. The result? Projects that feel eerily human.
+              He plans the architecture, writes production-grade code, tests for bugs, and deploys to GitHub. All while you focus on the vision, Jarvis handles the execution.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
