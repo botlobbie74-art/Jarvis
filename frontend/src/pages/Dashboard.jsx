@@ -14,6 +14,7 @@ import ChatView from '../components/ChatView';
 import CodeAgentView from '../components/CodeAgentView';
 import BillingView from '../components/BillingView';
 import PersonasView from '../components/PersonasView';
+import { t } from '../lib/i18n';
 
 export default function Dashboard() {
   const { user, logout, loading, refreshUser } = useAuth();
@@ -44,7 +45,9 @@ export default function Dashboard() {
     if (user) {
       loadSessions(); 
       const t = setInterval(refreshUser, 30000);
-      return () => clearInterval(t);
+      const h = () => setView('billing');
+      window.addEventListener('open-billing', h);
+      return () => { clearInterval(t); window.removeEventListener('open-billing', h); };
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -96,7 +99,7 @@ export default function Dashboard() {
           <div className="mb-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[14px] font-bold">
-                <span className={dark ? 'text-white' : 'text-slate-900'}>Crédits</span>
+                <span className={dark ? 'text-white' : 'text-slate-900'}>{t('dashboard_credits')}</span>
                 <SettingsIcon className={`w-3.5 h-3.5 ${dark ? 'text-white/30' : 'text-slate-400'}`} />
               </div>
               <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${dark ? 'bg-white/10' : 'bg-slate-100'}`}>
@@ -108,24 +111,25 @@ export default function Dashboard() {
             </div>
             <button 
               onClick={() => setView('billing')}
-              className="w-full h-10 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-[#451a03] font-bold text-[13px] flex items-center justify-center gap-2 transition-colors shadow-sm"
+              className="w-full h-10 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:scale-[1.02] active:scale-[0.98] text-[#451a03] font-[900] text-[13px] flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(251,191,36,0.3)] group relative overflow-hidden"
             >
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 -translate-x-full group-hover:animate-shimmer" />
               <div className="w-5 h-5 rounded-full bg-[#451a03]/10 flex items-center justify-center">
-                <Sparkles className="w-3 h-3 text-[#451a03]" />
+                <Zap className="w-3 h-3 text-[#451a03] fill-[#451a03]" />
               </div>
-              Acheter des crédits
+              {t('dashboard_refill')}
             </button>
           </div>
         </div>
 
         <div className="px-3 py-4 space-y-0.5">
           {[
-            { id: 'chat', icon: MessageSquare, label: 'Journal' },
-            { id: 'builder', icon: Hammer, label: 'Forge' },
-            { id: 'plugins', icon: Puzzle, label: 'Modules' },
-            { id: 'tasks', icon: ListChecks, label: 'Processes' },
-            { id: 'billing', icon: CreditCard, label: 'Treasury' },
-            { id: 'personas', icon: SettingsIcon, label: 'Directives' },
+            { id: 'chat', icon: MessageSquare, label: t('dashboard_chat') },
+            { id: 'builder', icon: Hammer, label: t('dashboard_build') },
+            { id: 'plugins', icon: Puzzle, label: t('dashboard_plugins') },
+            { id: 'tasks', icon: ListChecks, label: t('dashboard_habits') },
+            { id: 'billing', icon: CreditCard, label: t('dashboard_billing') },
+            { id: 'personas', icon: SettingsIcon, label: t('dashboard_settings') },
           ].map(({ id, icon: Icon, label }) => {
             const active = view === id;
             return (
@@ -149,7 +153,7 @@ export default function Dashboard() {
         </div>
 
         <div className="px-3 pb-2 flex items-center justify-between">
-          <span className={`text-[11px] uppercase tracking-wider font-semibold ${dark ? 'text-white/30' : 'text-slate-400'}`}>Recent chats</span>
+          <span className={`text-[11px] uppercase tracking-wider font-semibold ${dark ? 'text-white/30' : 'text-slate-400'}`}>{t('dashboard_recent_chats')}</span>
           <button
             onClick={() => newChat()}
             className={`${dark ? 'text-white/30 hover:text-white' : 'text-slate-400 hover:text-slate-900'} transition-colors`}

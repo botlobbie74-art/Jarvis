@@ -92,9 +92,9 @@ export default function PluginsView() {
       <div className="max-w-5xl mx-auto px-8 py-10">
         <div className="flex items-center gap-3 mb-1">
           <Plug className={`w-6 h-6 ${dark ? 'text-white' : 'text-slate-900'}`} />
-          <h1 className={`text-[28px] font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Plugins</h1>
+          <h1 className={`text-[28px] font-[900] tracking-tighter ${dark ? 'text-white' : 'text-slate-900'}`}>{t('plugins_title')}</h1>
         </div>
-        <p className={`${dark ? 'text-white/50' : 'text-slate-500'} mb-8`}>Connect the apps Jarvis should work with.</p>
+        <p className={`${dark ? 'text-white/40' : 'text-slate-500'} mb-8`}>{t('plugins_desc')}</p>
 
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className={`w-6 h-6 animate-spin ${dark ? 'text-white/30' : 'text-slate-200'}`} /></div>
@@ -170,45 +170,39 @@ export default function PluginsView() {
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? 'bg-[#26A5E4]/10 border-[#26A5E4]/20' : 'bg-sky-50 border-sky-100'}`}>
-                <div className="w-8 h-8 rounded-full bg-[#26A5E4] flex items-center justify-center text-white font-bold text-sm">1</div>
-                <div>
-                  <div className={`text-[13px] font-medium ${dark ? 'text-white' : 'text-slate-900'}`}>Open Jarvis Bot on Telegram</div>
-                  <a
-                    href={`https://t.me/${modal.botUsername}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[#26A5E4] text-[12px] flex items-center gap-1 hover:underline font-medium"
+            <div className="space-y-6 text-center">
+              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#26A5E4]/10 border border-[#26A5E4]/20 text-[#26A5E4] font-bold text-[14px]`}>
+                <Sparkles className="w-4 h-4" /> Telegram Bot
+              </div>
+              
+              <div className="space-y-2">
+                <p className={`text-[15px] font-medium ${dark ? 'text-white/80' : 'text-slate-700'}`}>
+                  Open the bot and send this code:
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                  <code className={`px-5 py-2.5 rounded-2xl text-[24px] font-mono font-bold tracking-[0.2em] shadow-xl ${dark ? 'bg-white text-black' : 'bg-slate-900 text-white'}`}>
+                    {modal.code}
+                  </code>
+                  <button
+                    onClick={() => copyToClipboard(modal.code)}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${dark ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-900'}`}
                   >
-                    @{modal.botUsername} <ExternalLink className="w-3 h-3" />
-                  </a>
+                    <Copy className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
 
-              <div className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                <div className={`w-8 h-8 rounded-full font-bold text-sm flex items-center justify-center ${dark ? 'bg-white/10 text-white' : 'bg-slate-200 text-slate-600'}`}>2</div>
-                <div className="flex-1">
-                  <div className={`text-[13px] font-medium mb-1 ${dark ? 'text-white' : 'text-slate-900'}`}>Send this code to the bot</div>
-                  <div className="flex items-center gap-2">
-                    <code className={`px-3 py-1.5 rounded-lg text-[15px] font-mono tracking-widest ${dark ? 'bg-black/40 text-cyan-400' : 'bg-white border border-slate-200 text-cyan-600'}`}>
-                      {modal.code}
-                    </code>
-                    <button
-                      onClick={() => copyToClipboard(modal.code)}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${dark ? 'bg-white/10 hover:bg-white/20 text-white/60' : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-500'}`}
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <a
+                href={`https://t.me/${modal.botUsername}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 px-6 h-12 rounded-full bg-[#26A5E4] hover:bg-[#2088bc] text-white font-bold text-[15px] transition-all shadow-lg shadow-[#26A5E4]/30"
+              >
+                Go to @{modal.botUsername} <ExternalLink className="w-4 h-4" />
+              </a>
 
-              <div className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? 'bg-white/5 border-white/10 text-white/60' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
-                <div className={`w-8 h-8 rounded-full font-bold text-sm flex items-center justify-center ${dark ? 'bg-white/10' : 'bg-slate-200'}`}>3</div>
-                <div className="text-[13px]">
-                  Waiting for verification… <Loader2 className="w-3.5 h-3.5 animate-spin inline ml-1" />
-                </div>
+              <div className={`flex items-center justify-center gap-2 text-[13px] opacity-40 ${dark ? 'text-white' : 'text-slate-500'}`}>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Verification en cours...
               </div>
             </div>
 

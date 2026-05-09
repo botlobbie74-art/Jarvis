@@ -58,41 +58,41 @@ export default function BillingView() {
   const creditPrices = data.credit_prices || {};
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50">
+    <div className={`flex-1 overflow-y-auto ${dark ? 'bg-black text-white' : 'bg-slate-50 text-slate-900'}`}>
       <div className="max-w-4xl mx-auto px-8 py-10">
         <div className="flex items-center gap-3 mb-1">
-          <CreditCard className="w-6 h-6 text-slate-900" />
-          <h1 className="text-[28px] font-semibold text-slate-900">Billing & usage</h1>
+          <CreditCard className={`w-6 h-6 ${dark ? 'text-white' : 'text-slate-900'}`} />
+          <h1 className="text-[28px] font-[900] tracking-tighter">{t('billing_title')}</h1>
         </div>
-        <p className="text-slate-500 mb-8">Manage your subscription and check your monthly usage.</p>
+        <p className={`mb-8 ${dark ? 'text-white/40' : 'text-slate-500'}`}>{t('billing_desc')}</p>
 
         {/* Current plan & Credits */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+        <div className={`rounded-2xl border p-6 mb-6 ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div className="flex gap-8">
               <div >
-                <div className="text-[12px] uppercase tracking-wider text-slate-400 font-semibold">Current plan</div>
+                <div className={`text-[12px] uppercase tracking-wider font-semibold ${dark ? 'text-white/30' : 'text-slate-400'}`}>{t('billing_current_plan')}</div>
                 <div className="flex items-center gap-2 mt-1">
                   <Crown className="w-5 h-5" style={{ color: info.color }} />
-                  <span className="text-[24px] font-semibold text-slate-900">{info.name}</span>
-                  <span className="text-[12px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">{data.status || 'active'}</span>
+                  <span className="text-[24px] font-bold">{info.name}</span>
+                  <span className={`text-[12px] px-2 py-0.5 rounded-full font-medium ${dark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>{data.status || 'active'}</span>
                 </div>
                 {data.current_period_end && (
-                  <div className="text-[13px] text-slate-500 mt-1">Renews on {new Date(data.current_period_end).toLocaleDateString()}</div>
+                  <div className={`text-[13px] mt-1 ${dark ? 'text-white/30' : 'text-slate-500'}`}>Renews on {new Date(data.current_period_end).toLocaleDateString()}</div>
                 )}
               </div>
-              <div className="border-l border-slate-200 pl-8">
-                <div className="text-[12px] uppercase tracking-wider text-slate-400 font-semibold">Credit Balance</div>
+              <div className={`border-l pl-8 ${dark ? 'border-white/10' : 'border-slate-200'}`}>
+                <div className={`text-[12px] uppercase tracking-wider font-semibold ${dark ? 'text-white/30' : 'text-slate-400'}`}>{t('billing_balance')}</div>
                 <div className="flex items-center gap-2 mt-1">
                   <Zap className="w-5 h-5 text-amber-500" />
-                  <span className="text-[24px] font-semibold text-slate-900">{credits.toLocaleString()}</span>
-                  <span className="text-[12px] text-slate-500">credits</span>
+                  <span className="text-[24px] font-bold">{credits.toLocaleString()}</span>
+                  <span className={`text-[12px] ${dark ? 'text-white/30' : 'text-slate-500'}`}>credits</span>
                 </div>
-                <div className="text-[13px] text-slate-500 mt-1">Used for builds & AI chat</div>
+                <div className={`text-[13px] mt-1 ${dark ? 'text-white/30' : 'text-slate-500'}`}>Used for builds & AI chat</div>
               </div>
             </div>
             {plan !== 'free' && (
-              <button onClick={portal} className="h-9 px-4 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[13px] font-medium flex items-center gap-1.5 transition-colors">
+              <button onClick={portal} className={`h-9 px-4 rounded-lg text-[13px] font-medium flex items-center gap-1.5 transition-colors ${dark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>
                 Manage subscription <ExternalLink className="w-3.5 h-3.5" />
               </button>
             )}
@@ -102,29 +102,29 @@ export default function BillingView() {
         {/* Credit Top-ups */}
         <div className="mb-10">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[18px] font-semibold text-slate-900">Top up Credits</h2>
-            <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-full border border-slate-200 hover:border-amber-500 transition-colors">
+            <h2 className="text-[18px] font-bold">{t('billing_topup')}</h2>
+            <label className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-full border transition-colors ${dark ? 'bg-white/5 border-white/10 hover:border-amber-500' : 'bg-white border-slate-200 hover:border-amber-500'}`}>
               <input type="checkbox" checked={autoTopup} onChange={(e) => {
                 setAutoTopup(e.target.checked);
                 toast({ title: e.target.checked ? 'Auto-topup enabled' : 'Auto-topup disabled', description: 'When balance falls below 500, we will auto-recharge 1000 credits.' });
               }} className="rounded border-slate-300 text-amber-500 focus:ring-amber-500" />
-              <span className="text-[12px] font-medium text-slate-700">Auto-recharge (1000 credits)</span>
+              <span className={`text-[12px] font-medium ${dark ? 'text-white/70' : 'text-slate-700'}`}>Auto-recharge (1000 credits)</span>
             </label>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Object.entries(creditPrices).map(([amount, price]) => (
-              <div key={amount} className="bg-white rounded-2xl p-6 border border-slate-200 hover:border-amber-500 transition-colors group">
+              <div key={amount} className={`rounded-2xl p-6 border transition-all hover:border-amber-500 group ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
                 <div className="flex items-center gap-2 mb-2">
                   <Zap className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
-                  <span className="font-semibold text-slate-900">{amount} Credits</span>
+                  <span className="font-bold">{amount} Credits</span>
                 </div>
                 <div className="flex items-baseline gap-1 mb-4">
-                  <span className="text-[24px] font-bold text-slate-900">€{price}</span>
+                  <span className="text-[24px] font-bold">€{price}</span>
                 </div>
                 <button
                   onClick={() => topup(amount)}
                   disabled={pending === amount}
-                  className="w-full h-10 rounded-lg bg-slate-900 text-white hover:bg-slate-800 font-medium transition-colors disabled:opacity-60"
+                  className={`w-full h-10 rounded-lg font-bold text-[14px] transition-all disabled:opacity-60 ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
                 >
                   {pending === amount ? 'Processing...' : 'Buy Now'}
                 </button>
@@ -135,7 +135,7 @@ export default function BillingView() {
 
         {/* Monthly Subscription Plans */}
         <div className="mb-10">
-          <h2 className={`text-[18px] font-semibold mb-3 ${dark ? 'text-white' : 'text-slate-900'}`}>Monthly Plans</h2>
+          <h2 className="text-[18px] font-bold mb-3">{t('billing_monthly')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <UpgradeCard 
               name="Starter" price="9.99" dark={dark}

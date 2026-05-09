@@ -77,9 +77,9 @@ export default function MarketingHome() {
             <Sparkles className="w-4 h-4 text-cyan-500" /> Autonomous AI Engineer
           </div>
           <h1 className="text-[64px] md:text-[96px] font-[900] tracking-tighter text-slate-900 leading-[0.9] mb-8">
-            Your autonomous<br />
+            Anything<br />
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#22a3ff] via-[#8b5cf6] to-[#f59e0b] animate-gradient-x">
-              AI co-worker.
+              you want.
             </span>
           </h1>
           <p className="mt-8 text-[20px] md:text-[22px] text-slate-500 max-w-2xl mx-auto leading-relaxed">

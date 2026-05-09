@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
-import { Send, Loader2, Paperclip, X as XIcon, Hammer, Mic, MousePointer2 } from 'lucide-react';
+import { Send, Loader2, Paperclip, X as XIcon, Hammer, MessageSquare, Mic, MousePointer2, Zap, Sparkles } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { t } from '../lib/i18n';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
 import { WingmanFace } from './WingmanLogo';
@@ -27,10 +29,11 @@ const ROLE_COLORS = {
   'jarvis': { bg: 'bg-sky-500/5', text: 'text-sky-400', border: 'border-sky-500/10', icon: 'text-sky-400' },
 };
 
-export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpenBuilder }) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const isOutOfCredits = (user?.credits || 0) <= 0;
   const [loading, setLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
   const [builderAction, setBuilderAction] = useState(null);
@@ -230,7 +233,7 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
             <div key={m.id} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {m.role === 'assistant' && (
                 <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center transition-colors ${dark ? 'bg-[#0d1a2b]' : 'bg-slate-100'} ${colors.border} border`}>
-                  <BotAvatar size={26} dark={dark} color={colors.icon} />
+                  {metadata.agent_type === 'builder' ? <Hammer className="w-5 h-5 text-indigo-400" /> : <BotAvatar size={26} dark={dark} color={colors.icon} />}
                 </div>
               )}
               <div className="flex flex-col max-w-[80%] gap-1">
@@ -297,48 +300,65 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
         attachedFile={attachedFile} onAttach={() => fileInputRef.current?.click()} onRemoveFile={() => setAttachedFile(null)} 
         recording={recording} onStartRecording={startRecording} onStopRecording={stopRecording}
         dark={dark} 
+        user={user}
       />
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileAttach} />
     </div>
   );
 }
 
-const ChatComposer = ({ input, setInput, send, sending, attachedFile, onAttach, onRemoveFile, recording, onStartRecording, onStopRecording, dark }) => (
-  <form onSubmit={send} className={`p-4 border-t ${dark ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white'}`}>
-    {attachedFile && (
-      <div className={`max-w-3xl mx-auto mb-2 flex items-center gap-2 px-3 py-2 border rounded-lg ${dark ? 'bg-white/5 border-white/10 text-white/70' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
-        <Paperclip className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
-        <span className="text-[12px] truncate flex-1">{attachedFile.name}</span>
-        <button type="button" onClick={onRemoveFile} className={`${dark ? 'text-white/30 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}><XIcon className="w-3.5 h-3.5" /></button>
+const ChatComposer = ({ input, setInput, send, sending, attachedFile, onAttach, onRemoveFile, recording, onStartRecording, onStopRecording, dark, user }) => {
+  const isOutOfCredits = (user?.credits || 0) <= 0;
+  return (
+    <form onSubmit={send} className={`p-4 border-t ${dark ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white'}`}>
+      {isOutOfCredits && (
+        <div className="max-w-3xl mx-auto mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center animate-pulse">
+          <p className="text-[14px] font-bold text-amber-500 mb-3">{t('dashboard_out_of_credits')}</p>
+          <button 
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-billing'))}
+            className="px-6 h-9 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-black font-bold text-[13px] shadow-[0_0_20px_rgba(245,158,11,0.4)] hover:scale-105 transition-transform"
+          >
+            {t('dashboard_refill')}
+          </button>
+        </div>
+      )}
+      {attachedFile && (
+        <div className={`max-w-3xl mx-auto mb-2 flex items-center gap-2 px-3 py-2 border rounded-lg ${dark ? 'bg-white/5 border-white/10 text-white/70' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
+          <Paperclip className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+          <span className="text-[12px] truncate flex-1">{attachedFile.name}</span>
+          <button type="button" onClick={onRemoveFile} className={`${dark ? 'text-white/30 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}><XIcon className="w-3.5 h-3.5" /></button>
+        </div>
+      )}
+      <div className={`max-w-3xl mx-auto relative group ${isOutOfCredits ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
+        <div className={`absolute -inset-1 rounded-[22px] bg-gradient-to-r from-blue-500 to-fuchsia-600 opacity-0 group-focus-within:opacity-20 blur-xl transition-opacity duration-500`} />
+        <div className={`relative flex items-end gap-2 border rounded-[20px] px-4 py-3 shadow-2xl transition-all duration-300 backdrop-blur-xl ${
+          dark 
+            ? 'bg-black/60 border-white/5 group-focus-within:border-white/10' 
+            : 'bg-white/80 border-slate-200 group-focus-within:border-slate-300'
+        }`}>
+          <button type="button" onClick={onAttach} title="Attach file" className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
+            <Paperclip className="w-4 h-4" />
+          </button>
+          <button type="button" onMouseDown={onStartRecording} onMouseUp={onStopRecording} onMouseLeave={onStopRecording}
+            title="Hold to speak" 
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${recording ? 'bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse' : dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
+            <Mic className="w-4 h-4" />
+          </button>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e); } }}
+            placeholder={isOutOfCredits ? t('dashboard_out_of_credits') : "What's the next directive?"}
+            disabled={isOutOfCredits}
+            rows={1}
+            className={`flex-1 bg-transparent outline-none resize-none text-[15px] font-medium py-2 max-h-40 ${dark ? 'text-white placeholder:text-white/20' : 'text-slate-800 placeholder:text-slate-400'}`}
+          />
+          <button type="submit" disabled={sending || !input.trim() || isOutOfCredits} className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center disabled:opacity-20 transition-all transform active:scale-90 shadow-lg shadow-blue-500/20">
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
-    )}
-    <div className={`max-w-3xl mx-auto relative group`}>
-      <div className={`absolute -inset-1 rounded-[22px] bg-gradient-to-r from-blue-500 to-fuchsia-600 opacity-0 group-focus-within:opacity-20 blur-xl transition-opacity duration-500`} />
-      <div className={`relative flex items-end gap-2 border rounded-[20px] px-4 py-3 shadow-2xl transition-all duration-300 backdrop-blur-xl ${
-        dark 
-          ? 'bg-black/60 border-white/5 group-focus-within:border-white/10' 
-          : 'bg-white/80 border-slate-200 group-focus-within:border-slate-300'
-      }`}>
-        <button type="button" onClick={onAttach} title="Attach file" className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
-          <Paperclip className="w-4 h-4" />
-        </button>
-        <button type="button" onMouseDown={onStartRecording} onMouseUp={onStopRecording} onMouseLeave={onStopRecording}
-          title="Hold to speak" 
-          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${recording ? 'bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse' : dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
-          <Mic className="w-4 h-4" />
-        </button>
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e); } }}
-          placeholder="What's the next directive?"
-          rows={1}
-          className={`flex-1 bg-transparent outline-none resize-none text-[15px] font-medium py-2 max-h-40 ${dark ? 'text-white placeholder:text-white/20' : 'text-slate-800 placeholder:text-slate-400'}`}
-        />
-        <button type="submit" disabled={sending || !input.trim()} className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center disabled:opacity-20 transition-all transform active:scale-90 shadow-lg shadow-blue-500/20">
-          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-        </button>
-      </div>
-    </div>
-  </form>
-);
+    </form>
+  );
+};

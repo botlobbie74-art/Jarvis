@@ -4,8 +4,18 @@ export const ASSISTANTS = [
     name: 'Jarvis',
     role: 'Your personal AI agent',
     color: '#22a3ff',
+    icon: 'message', // used to determine icon in ChatView
     bg: 'linear-gradient(135deg, #0a2540 0%, #0d3a6b 100%)',
-    description: 'Builds apps, writes code, manages your projects, and answers anything.',
+    description: 'Answers anything and manages your digital life.',
+  },
+  {
+    id: 'builder',
+    name: 'Jarvis Builder',
+    role: 'Autonomous App Builder',
+    color: '#8b5cf6',
+    icon: 'hammer',
+    bg: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+    description: 'Builds apps, writes code, and architects entire systems.',
   },
 ];
 

@@ -204,9 +204,9 @@ export default function CodeAgentView() {
           </button>
         </div>
         <div className="relative z-10 max-w-4xl mx-auto px-6 pt-32 pb-10">
-          <h1 className={`text-center font-[800] tracking-tighter ${dark ? 'text-white' : 'text-slate-900'}`} style={{ fontSize: 'clamp(44px, 8vw, 96px)', lineHeight: 0.95 }}>
-            Forging<br />
-            <span className="text-slate-400">the future.</span>
+          <h1 className={`text-center font-[900] tracking-tighter ${dark ? 'text-white' : 'text-slate-900'}`} style={{ fontSize: 'clamp(44px, 8vw, 96px)', lineHeight: 0.9 }}>
+            {t('build_hero').split(' ')[0]}<br />
+            <span className="text-[#22a3ff]">{t('build_hero').split(' ').slice(1).join(' ')}</span>
           </h1>
           <div className={`mt-16 rounded-3xl border shadow-2xl transition-all ${dark ? 'bg-[#0a0a0c] border-white/10' : 'bg-white border-slate-200'}`}>
             {attachedFile && (
@@ -220,37 +220,51 @@ export default function CodeAgentView() {
             )}
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) createPlan(); }}
-              placeholder="Describe the app or feature you want to build..."
+              placeholder={isFree && (user?.credits || 0) <= 0 ? t('dashboard_out_of_credits') : t('build_placeholder')}
               rows={4}
-              className={`w-full px-6 py-6 bg-transparent outline-none resize-none text-[18px] leading-relaxed ${dark ? 'text-white placeholder:text-white/20' : 'text-slate-800 placeholder:text-slate-400'}`}
+              disabled={isFree && (user?.credits || 0) <= 0}
+              className={`w-full px-6 py-6 bg-transparent outline-none resize-none text-[18px] leading-relaxed ${dark ? 'text-white placeholder:text-white/20' : 'text-slate-800 placeholder:text-slate-400'} ${isFree && (user?.credits || 0) <= 0 ? 'opacity-30 grayscale pointer-events-none' : ''}`}
             />
-            <div className={`flex items-center justify-between px-4 py-3 border-t ${dark ? 'border-white/5' : 'border-slate-100'}`}>
-              <div className="flex items-center gap-3">
-                <button title="Attach file" onClick={() => fileInputRef.current?.click()}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${dark ? 'text-white/50 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100'}`}>
-                  <Paperclip className="w-4 h-4" />
-                </button>
-                <input ref={fileInputRef} type="file" className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) { setAttachedFile(f); toast({ title: `${f.name} attached` }); }
-                  }} />
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={autoBuild} onChange={(e) => setAutoBuild(e.target.checked)} className="rounded border-slate-300 text-cyan-500 focus:ring-cyan-500 bg-white/10" />
-                  <span className={`text-[12px] font-medium ${dark ? 'text-white/60' : 'text-slate-500'}`}>Auto-Build</span>
-                </label>
-                <div className={`w-px h-4 ${dark ? 'bg-white/10' : 'bg-slate-200'}`} />
-                <button onClick={() => toast({ title: 'Ultra Smart is Coming Soon', description: 'This mode will use GPT-4, Claude 3.5 and Gemini Pro for massive projects.' })}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all border ${dark ? 'bg-white/5 border-white/10 text-white/30' : 'bg-slate-50 border-slate-200 text-slate-400'} opacity-60 cursor-help`}>
-                  <Sparkles className="w-3 h-3" />
-                  <span className="text-[10px] font-bold">ULTRA (SOON)</span>
+            <div className={`flex flex-col border-t ${dark ? 'border-white/5' : 'border-slate-100'}`}>
+              {isFree && (user?.credits || 0) <= 0 && (
+                <div className="p-4 bg-amber-500/10 text-center">
+                  <p className="text-[12px] font-bold text-amber-500 mb-2">{t('dashboard_out_of_credits')}</p>
+                  <button 
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-billing'))}
+                    className="h-8 px-5 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-black font-bold text-[11px] shadow-lg"
+                  >
+                    {t('dashboard_refill')}
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <button title="Attach file" onClick={() => fileInputRef.current?.click()}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${dark ? 'text-white/50 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100'}`}>
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <input ref={fileInputRef} type="file" className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) { setAttachedFile(f); toast({ title: `${f.name} attached` }); }
+                    }} />
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={autoBuild} onChange={(e) => setAutoBuild(e.target.checked)} className="rounded border-slate-300 text-cyan-500 focus:ring-cyan-500 bg-white/10" />
+                    <span className={`text-[12px] font-medium ${dark ? 'text-white/60' : 'text-slate-500'}`}>Auto-Build</span>
+                  </label>
+                  <div className={`w-px h-4 ${dark ? 'bg-white/10' : 'bg-slate-200'}`} />
+                  <button onClick={() => toast({ title: 'Ultra Smart is Coming Soon', description: 'This mode will use GPT-4, Claude 3.5 and Gemini Pro for massive projects.' })}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all border ${dark ? 'bg-white/5 border-white/10 text-white/30' : 'bg-slate-50 border-slate-200 text-slate-400'} opacity-60 cursor-help`}>
+                    <Sparkles className="w-3 h-3" />
+                    <span className="text-[10px] font-bold">ULTRA (SOON)</span>
+                  </button>
+                </div>
+                <button onClick={createPlan} disabled={creating || !description.trim() || (isFree && (user?.credits || 0) <= 0)}
+                  className={`h-11 px-6 rounded-full flex items-center gap-2 transition-colors disabled:opacity-40 font-semibold text-[14px] ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+                  {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
+                  {creating ? 'Planning...' : t('build_start')}
                 </button>
               </div>
-              <button onClick={createPlan} disabled={creating || !description.trim()}
-                className={`h-11 px-6 rounded-full flex items-center gap-2 transition-colors disabled:opacity-40 font-semibold text-[14px] ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
-                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
-                {creating ? 'Planning...' : 'Build App'}
-              </button>
             </div>
           </div>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -266,13 +280,22 @@ export default function CodeAgentView() {
               <h2 className={`text-[14px] font-semibold mb-3 ${dark ? 'text-white/80' : 'text-slate-900'}`}>Recent projects</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {projects.slice(0, 8).map((p) => (
-                  <div key={p.id} className={`rounded-xl border p-4 transition-colors ${dark ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white border-slate-200 hover:shadow-md'}`}>
+                  <div key={p.id} className={`group rounded-xl border p-4 transition-all ${dark ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white border-slate-200 hover:shadow-md'}`}>
                     <div className="flex items-start gap-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-white/10' : 'bg-slate-900 text-white'}`}>
                         <FileCode className={`w-5 h-5 ${dark ? 'text-cyan-400' : 'text-white'}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className={`font-semibold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{p.name}</div>
+                        <div className="flex items-center gap-2">
+                          <div className={`font-semibold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{p.name}</div>
+                          <button onClick={() => {
+                            const n = prompt(t('dashboard_rename'), p.name);
+                            if (n) api.put(`/projects/${p.id}`, { name: n }).then(() => loadProjects());
+                          }} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded transition-opacity">
+                            <Sparkles className="w-3 h-3 text-cyan-400" /> {/* Pencil icon replacement for now if lucide Pencil missing, but I have Hammer */}
+                          </button>
+                        </div>
+                        <div className={`text-[11px] truncate opacity-40 ${dark ? 'text-white' : 'text-slate-900'}`}>{p.description || t('dashboard_desc')}</div>
                       </div>
                       <button onClick={() => remove(p.id)} className={`${dark ? 'text-white/40 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`}>
                         <Trash2 className="w-4 h-4" />
