@@ -65,7 +65,7 @@ export default function BillingView() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#0a0a0f] text-white">
-      <div className="max-w-7xl mx-auto px-8 py-10">
+      <div className="max-w-5xl mx-auto px-8 py-10">
         <div className="flex items-center gap-3 mb-1">
           <CreditCard className="w-6 h-6 text-cyan-400" />
           <h1 className="text-[28px] font-[900] tracking-tighter">Facturation</h1>
@@ -153,8 +153,8 @@ export default function BillingView() {
         </div>
 
         <div className="mb-10">
-          <h2 className="text-[18px] font-bold mb-6">Forfaits mensuels</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
+          <h2 className="text-[18px] font-bold mb-3">Forfaits mensuels</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {PLANS.map((monthlyPlan) => (
               <UpgradeCard
                 key={monthlyPlan.id}
@@ -178,23 +178,18 @@ export default function BillingView() {
 }
 
 const UpgradeCard = ({ plan, active, onClick, pending }) => (
-  <div className="relative h-full">
-    {plan.popular && (
-      <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-30 bg-cyan-500 text-[#061017] text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-xl shadow-cyan-500/20 whitespace-nowrap">
-        LE PLUS POPULAIRE
-      </div>
-    )}
-    <div className={`${plan.popular ? 'pro-glow-border' : ''} h-full`}>
-      <div className={`rounded-[20px] p-8 border transition-all hover:-translate-y-1 relative h-full flex flex-col ${
-        plan.popular
-          ? 'bg-[#12121a] border-transparent shadow-[0_0_34px_rgba(34,211,238,0.14)]'
-          : 'bg-[#12121a] border-[#ffffff15] hover:border-white/25'
-      } ${active ? 'ring-1 ring-cyan-400/40' : ''}`}>
-      <div className="flex items-center gap-2 mb-3">
-        {plan.popular ? <Zap className="w-5 h-5 text-cyan-400" /> : <Sparkles className="w-5 h-5 text-cyan-400" />}
-        <span className="font-bold text-[18px]">{plan.name}</span>
-        {active && <span className="ml-auto rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-300">Actif</span>}
-      </div>
+  <div className={`${plan.popular ? 'pro-glow-border' : ''} h-full`}>
+    <div className={`rounded-[20px] p-8 border transition-all hover:-translate-y-1 relative h-full flex flex-col ${
+      plan.popular
+        ? 'bg-[#12121a] border-transparent shadow-[0_0_34px_rgba(34,211,238,0.14)]'
+        : 'bg-[#12121a] border-[#ffffff15] hover:border-white/25'
+    } ${active ? 'ring-1 ring-cyan-400/40' : ''}`}>
+    {plan.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap bg-cyan-500 text-[#061017] text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-xl shadow-cyan-500/20">LE PLUS POPULAIRE</div>}
+    <div className="flex items-center gap-2 mb-3">
+      {plan.popular ? <Zap className="w-5 h-5 text-cyan-400" /> : <Sparkles className="w-5 h-5 text-cyan-400" />}
+      <span className="font-bold text-[18px]">{plan.name}</span>
+      {active && <span className="ml-auto rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-300">Actif</span>}
+    </div>
     <div className="flex items-baseline gap-1 mb-6">
       {plan.price > 0 ? <span className="text-[42px] font-bold">€{plan.price}</span> : <span className="text-[42px] font-bold">0€</span>}
       <span className="text-white/40">{plan.period}</span>
@@ -216,7 +211,6 @@ const UpgradeCard = ({ plan, active, onClick, pending }) => (
         {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : (active ? 'Actuel' : plan.buttonText)}
       </button>
     )}
-    </div>
     </div>
   </div>
 );

@@ -2,6 +2,9 @@
 -- Daily free credit reset via pg_cron (à activer dans Supabase)
 -- Nécessite l'extension pg_cron activée dans les settings Supabase
 
+-- Add the missing tier column that backend expects
+ALTER TABLE jarvis_users ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'free';
+
 -- Option 1 : pg_cron (si disponible dans votre plan Supabase)
 -- Resette les crédits des utilisateurs gratuits à minuit UTC
 -- SELECT cron.schedule(

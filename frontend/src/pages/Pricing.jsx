@@ -106,7 +106,7 @@ export default function Pricing() {
         </div>
 
         {/* CARDS */}
-        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
           {PLANS.map((p) => (
             <div key={p.id} className={p.highlight ? 'pro-glow-border h-full' : ''}>
               <div className={`rounded-[20px] p-8 border transition-all duration-500 flex flex-col h-full ${
@@ -133,9 +133,9 @@ export default function Pricing() {
                   {p.features.map((f, i) => (
                     <li key={i} className="flex items-center gap-3 text-[14px] text-white/90">
                       <div className="flex-shrink-0">{f.icon}</div>
-                      <span>{f.text}</span>
+                      <span className="flex-1 leading-tight">{f.text}</span>
                       {f.badge && (
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${
+                        <span className={`flex-shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${
                           f.badge === 'NEW' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-fuchsia-500/20 text-fuchsia-400'
                         }`}>
                           {f.badge}
