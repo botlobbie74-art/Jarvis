@@ -3,14 +3,12 @@ import api from '../lib/api';
 import { Send, Loader2, Paperclip, X as XIcon, Hammer, Mic, MousePointer2 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
+import { WingmanFace } from './WingmanLogo';
 
-const BotAvatar = ({ size = 40, dark = true }) => (
-  <svg viewBox="0 0 100 100" width={size} height={size}>
-    <rect x="15" y="15" width="70" height="60" rx="18" fill={dark ? "#0b0f17" : "#f1f5f9"} />
-    <rect x="45" y="75" width="10" height="10" fill={dark ? "#0b0f17" : "#f1f5f9"} />
-    <circle cx="38" cy="45" r="6" fill="#22a3ff" />
-    <circle cx="62" cy="45" r="6" fill="#22a3ff" />
-  </svg>
+const BotAvatar = ({ size = 40, dark = true, color = "#22a3ff" }) => (
+  <div className="flex items-center justify-center" style={{ width: size, height: size }}>
+    <WingmanFace size={size * 0.8} />
+  </div>
 );
 
 const ROLE_COLORS = {

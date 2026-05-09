@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { Loader2, Sparkles, Github, Play, FileCode, Trash2, ChevronRight, Rocket, Paperclip, ArrowUp, Sun, Moon, X as XIcon, Download, Check, ChevronDown, ChevronUp, RefreshCw, ExternalLink } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 const ROLE_COLORS = {
   'ceo': { dot: 'bg-amber-400', text: 'text-amber-400', label: 'CEO' },
@@ -46,7 +47,9 @@ export default function CodeAgentView() {
   const chatEndRef = useRef(null);
   const { toast } = useToast();
   const { theme, toggle } = useTheme();
+  const { user } = useAuth();
   const dark = theme === 'dark';
+  const isFree = user?.plan === 'free';
 
   const loadProjects = async () => {
     setLoading(true);
@@ -160,6 +163,10 @@ export default function CodeAgentView() {
   };
 
   const pushGithub = async () => {
+    if (isFree) {
+      toast({ title: 'Premium Feature', description: 'GitHub synchronization is available on paid plans.', variant: 'default' });
+      return;
+    }
     setPushing(true);
     setDeployResult(null);
     try {
@@ -173,14 +180,11 @@ export default function CodeAgentView() {
   };
 
   const downloadZip = async () => {
-    if (!active) return;
-    try {
-      const response = await api.get(`/projects/${active.project.id}/download-zip`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url; link.setAttribute('download', `${active.project.name || 'project'}.zip`);
-      document.body.appendChild(link); link.click(); link.remove();
-    } catch (e) { toast({ title: 'Download failed', variant: 'destructive' }); }
+    if (isFree) {
+      toast({ title: 'Premium Feature', description: 'Source code download is available on paid plans.', variant: 'default' });
+      return;
+    }
+    window.location.href = `${api.defaults.baseURL}/projects/${active.project.id}/download-zip?token=${localStorage.getItem('wingman_token')}`;
   };
 
   const remove = async (id) => {
@@ -319,11 +323,23 @@ export default function CodeAgentView() {
         <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/5 p-1 rounded-xl">
           <button onClick={() => setView('preview')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'preview' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Preview</button>
           <button onClick={() => setView('code')} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all ${view === 'code' ? 'bg-white dark:bg-white/10 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700'}`}>Code</button>
-          <button onClick={downloadZip} className="h-8 px-3 rounded-lg text-[12px] font-semibold text-slate-500 hover:text-slate-700 transition-all flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />ZIP</button>
+          <button onClick={downloadZip} className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all flex items-center gap-1.5 ${isFree ? 'opacity-50 grayscale' : 'text-slate-500 hover:text-slate-700'}`}>
+            <Download className="w-3.5 h-3.5" />ZIP
+          </button>
           <a href={active.project.github_url} target="_blank" rel="noopener noreferrer" className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all flex items-center gap-1.5 ${active.project.github_url ? 'text-slate-500 hover:text-slate-700' : 'hidden'}`}>
             <Github className="w-3.5 h-3.5" />GitHub
           </a>
-          <button onClick={() => { setDeployModal(true); setDeployResult(null); }} disabled={pushing} className="h-8 px-4 rounded-lg text-[12px] font-bold bg-slate-900 dark:bg-white text-white dark:text-black hover:opacity-90 transition-all flex items-center gap-1.5">
+          <button 
+            onClick={() => {
+              if (isFree) {
+                toast({ title: 'Upgrade to Deploy', description: 'Production deployment is reserved for paid plans.', variant: 'default' });
+              } else {
+                setDeployModal(true); setDeployResult(null); 
+              }
+            }} 
+            disabled={pushing} 
+            className={`h-8 px-4 rounded-lg text-[12px] font-bold transition-all flex items-center gap-1.5 ${isFree ? 'bg-slate-200 text-slate-500 dark:bg-white/5' : 'bg-slate-900 dark:bg-white text-white dark:text-black hover:opacity-90'}`}
+          >
             <Rocket className="w-3.5 h-3.5" />
             Deploy
           </button>
@@ -408,7 +424,6 @@ export default function CodeAgentView() {
                   <Sparkles className="w-8 h-8 mx-auto mb-3 opacity-50" />
                   <p className="text-[13px]">Activity will appear here</p>
                 </div>
-              )}               {(() => {
               )}
               {(() => {
                 const elements = [];

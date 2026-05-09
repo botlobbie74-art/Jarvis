@@ -34,10 +34,10 @@ const FEATURES = [
 ];
 
 const HOW = [
-  { n: 1, title: 'Concept', desc: 'Share your vision in plain English or French. Jarvis deeply understands complex business logic and intent.', color: 'from-blue-400 to-cyan-400' },
-  { n: 2, title: 'Architect', desc: 'Jarvis generates a multi-phase technical blueprint, architecting every component before writing a single line.', color: 'from-cyan-400 to-emerald-400' },
-  { n: 3, title: 'Execute', desc: 'Our specialized AI agents build your application file-by-file with production-grade code and robust logic.', color: 'from-emerald-400 to-amber-400' },
-  { n: 4, title: 'Deploy', desc: 'One click pushes your full project to a clean GitHub repository, ready for production and scaling.', color: 'from-amber-400 to-fuchsia-400' },
+  { n: 1, title: 'Describe', desc: 'Tell Jarvis what you want to build, in plain English or French. He deeply understands complex business logic and intent.', color: 'from-blue-500 to-cyan-500' },
+  { n: 2, title: 'Plan', desc: 'Jarvis writes a 10-15 step detailed technical plan, architecting every component for your review.', color: 'from-cyan-500 to-emerald-500' },
+  { n: 3, title: 'Build', desc: 'Code is generated file-by-file by specialized agents, built with production-grade patterns and robust logic.', color: 'from-emerald-500 to-amber-500' },
+  { n: 4, title: 'Ship', desc: 'One click pushes the entire project to a fresh GitHub repository, ready for production and scaling.', color: 'from-amber-500 to-fuchsia-500' },
 ];
 
 const FAQ = [
@@ -76,9 +76,11 @@ export default function MarketingHome() {
           <div className="inline-flex items-center gap-2 bg-slate-900/5 border border-slate-200 rounded-full px-4 py-1.5 text-[13px] font-medium text-slate-700 mb-10 hover:bg-slate-900/10 transition-colors cursor-default">
             <Sparkles className="w-4 h-4 text-cyan-500" /> Autonomous AI Engineer
           </div>
-          <h1 className="text-[64px] md:text-[96px] font-[800] tracking-tighter text-slate-900 leading-[0.95] mb-8">
+          <h1 className="text-[64px] md:text-[96px] font-[900] tracking-tighter text-slate-900 leading-[0.9] mb-8">
             Your autonomous<br />
-            <span className="text-slate-400">AI co-worker.</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#22a3ff] via-[#8b5cf6] to-[#f59e0b] animate-gradient-x">
+              AI co-worker.
+            </span>
           </h1>
           <p className="mt-8 text-[20px] md:text-[22px] text-slate-500 max-w-2xl mx-auto leading-relaxed">
             Jarvis builds your apps, runs your tasks, browses the web, manages your Google Workspace — and pushes everything to your GitHub. <span className="text-slate-900 font-semibold">All on its own.</span>

@@ -57,7 +57,7 @@ class UserSignup(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr; password: str
 class UserOut(BaseModel):
-    id: str; email: str; name: str; created_at: str
+    id: str; email: str; name: str; created_at: str; credits: float = 0.0; plan: str = "free"
 class TokenResponse(BaseModel):
     access_token: str; token_type: str = "bearer"; user: UserOut
 
@@ -174,7 +174,11 @@ async def login(payload: UserLogin):
 
 @api_router.get("/auth/me", response_model=UserOut)
 async def me(user=Depends(get_current_user)):
-    return UserOut(id=user["id"], email=user["email"], name=user["name"], created_at=user["created_at"])
+    plan_data = _user_plan(user["id"])
+    return UserOut(
+        id=user["id"], email=user["email"], name=user["name"], created_at=user["created_at"],
+        credits=_user_credits(user["id"]), plan=plan_data.get("plan", "free")
+    )
 
 # ============ SUPABASE OAUTH EXCHANGE ============
 class SupabaseExchangeIn(BaseModel):
@@ -506,24 +510,29 @@ async def _yt_get_stats(token: str, max_results: int = 3):
 async def _sheets_append(token: str, spreadsheet_name: str, rows: List[List[Any]]):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     async with httpx.AsyncClient() as cli:
-        # Find the spreadsheet by name
-        r = await cli.get(f"https://www.googleapis.com/drive/v3/files?q=name='{spreadsheet_name}' and mimeType='application/vnd.google-apps.spreadsheet'", headers=headers)
+        # 1. Find spreadsheet by name
+        r = await cli.get(f"https://www.googleapis.com/drive/v3/files?q=name='{spreadsheet_name}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false", headers=headers)
         if r.status_code != 200: return f"Drive Error: {r.text}"
         files = r.json().get("files", [])
+        
+        spreadsheet_id = None
         if not files:
-            # Create if not exists
-            r = await cli.post("https://sheets.googleapis.com/v4/spreadsheets", headers=headers, json={"properties": {"title": spreadsheet_name}})
-            if r.status_code != 200: return f"Sheets Create Error: {r.text}"
-            spreadsheet_id = r.json()["spreadsheetId"]
+            # 2. Create if not exists
+            cr = await cli.post("https://sheets.googleapis.com/v4/spreadsheets", headers=headers, json={"properties": {"title": spreadsheet_name}})
+            if cr.status_code != 200: return f"Sheets Create Error: {cr.text}"
+            spreadsheet_id = cr.json()["spreadsheetId"]
         else:
             spreadsheet_id = files[0]["id"]
             
-        # Append rows
+        # 3. Append rows
         body = {"values": rows}
-        r = await cli.post(f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/A1:append?valueInputOption=USER_ENTERED", 
-                           headers=headers, json=body)
-        if r.status_code != 200: return f"Sheets Append Error: {r.text}"
-        return "success"
+        ar = await cli.post(f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/Sheet1!A1:append?valueInputOption=USER_ENTERED", 
+                            headers=headers, json=body)
+        if ar.status_code != 200: 
+            # Retry with "A1" if "Sheet1!A1" fails (diff languages)
+            ar = await cli.post(f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/A1:append?valueInputOption=USER_ENTERED", 
+                                headers=headers, json=body)
+        return "success" if ar.status_code == 200 else f"Sheets Error: {ar.text}"
 
 async def _run_task(task_id: str):
     task = sb.table("jarvis_tasks").select("*").eq("id", task_id).single().execute().data
@@ -796,12 +805,21 @@ async def delete_project(pid: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 @api_router.post("/projects/{pid}/push-github")
-async def push_to_github(pid: str, user=Depends(get_current_user)):
+async def push_to_github(pid: str, payload: Dict[str, Any], user=Depends(get_current_user)):
+    # 1. Plan check
+    uplan = _user_plan(user["id"])
+    if uplan.get("plan") == "free":
+        raise HTTPException(402, "GitHub and Production deployment are premium features. Please upgrade.")
+    
+    # 2. GitHub Token check
     if not GITHUB_TOKEN:
         raise HTTPException(400, "GITHUB_TOKEN not configured. Add a GitHub Personal Access Token in backend/.env")
+    
     proj = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).single().execute().data
     if not proj: raise HTTPException(404, "Not found")
     files = sb.table("jarvis_project_files").select("*").eq("project_id", pid).execute().data
+    
+    subdomain = payload.get("subdomain") or proj["name"].lower().replace("_", "-").replace(" ", "-")[:50]
     try:
         gh = Github(GITHUB_TOKEN)
         gh_user = gh.get_user()
@@ -826,14 +844,13 @@ async def push_to_github(pid: str, user=Depends(get_current_user)):
         is_paid = user_plan.data and user_plan.data[0].get("plan") not in ("free", None)
 
         VERCEL_TOKEN = os.environ.get("VERCEL_TOKEN")
-        if VERCEL_TOKEN and is_paid:
+        if VERCEL_TOKEN:
             try:
                 v_headers = {"Authorization": f"Bearer {VERCEL_TOKEN}"}
-                clean_repo_name = repo_name.lower().replace("_", "-")[:50]
-                custom_domain = f"{clean_repo_name}.jarvisagent.app"
+                custom_domain = f"{subdomain}.jarvisagent.app"
                 
                 v_payload = {
-                    "name": clean_repo_name,
+                    "name": subdomain,
                     "target": "production",
                     "alias": [custom_domain],
                     "projectSettings": {"framework": "create-react-app" if any(f["path"].endswith("App.jsx") for f in files) else None},
@@ -1416,6 +1433,11 @@ async def stripe_webhook(request: Request):
 
 @api_router.get("/projects/{pid}/download-zip")
 async def download_project_zip(pid: str, user=Depends(get_current_user)):
+    # Plan check
+    uplan = _user_plan(user["id"])
+    if uplan.get("plan") == "free":
+        raise HTTPException(402, "Source code download is a premium feature. Please upgrade.")
+        
     proj = sb.table("jarvis_projects").select("id").eq("id", pid).eq("user_id", user["id"]).execute()
     if not proj.data: raise HTTPException(404, "Not found")
     files = sb.table("jarvis_project_files").select("*").eq("project_id", pid).execute().data
