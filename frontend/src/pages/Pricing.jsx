@@ -1,11 +1,33 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Zap, Plug, Sparkles, ArrowRight, ShieldCheck, Cpu, Globe, Rocket, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, Zap, Plug, Sparkles, ArrowRight, ShieldCheck, Cpu, Globe, Rocket, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { JarvisFace, JarvisWordmark } from '../components/JarvisLogo';
+import { useAuth } from '../context/AuthContext';
+import api from '../lib/api';
 import { t } from '../lib/i18n';
 
 export default function Pricing() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [pending, setPending] = useState(null);
+
+  const handleAction = async (planId) => {
+    if (!user) {
+      navigate('/login?signup=1' + (planId ? `&plan=${planId}` : ''));
+      return;
+    }
+    
+    setPending(planId);
+    try {
+      const { data } = await api.post('/billing/topup', { amount_credits: planId });
+      window.location.href = data.url;
+    } catch (e) {
+      console.error(e);
+      alert("Erreur lors de la création de la session de paiement.");
+    } finally {
+      setPending(null);
+    }
+  };
 
   const PLANS = [
     {
@@ -124,8 +146,9 @@ export default function Pricing() {
                 </ul>
 
                 <button
-                  onClick={() => navigate('/login?signup=1')}
-                  className={`w-full h-12 rounded-xl font-bold text-[15px] transition-all transform active:scale-95 ${
+                  onClick={() => handleAction(p.id)}
+                  disabled={!!pending}
+                  className={`w-full h-12 rounded-xl font-bold text-[15px] transition-all transform active:scale-95 flex items-center justify-center gap-2 ${
                     p.id === 'pro'
                       ? 'bg-gradient-to-r from-cyan-400 to-violet-500 text-black shadow-xl shadow-cyan-500/20'
                       : p.id === 'starter'
@@ -133,7 +156,7 @@ export default function Pricing() {
                         : 'bg-violet-900 border border-violet-500/50 hover:bg-violet-800'
                   }`}
                 >
-                  {p.button}
+                  {pending === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : p.button}
                 </button>
               </div>
             </div>

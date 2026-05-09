@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../lib/api';
 import { useTheme } from '../context/ThemeContext';
-import { Play, CheckCircle2, XCircle, Loader2, Clock, Send, ShieldAlert, Cpu } from 'lucide-react';
+import { Play, CheckCircle2, XCircle, Loader2, Clock, Send, ShieldAlert, Cpu, Sparkles } from 'lucide-react';
 
 export default function ChiefOfStaffView() {
   const { theme } = useTheme();

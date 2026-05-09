@@ -100,3 +100,21 @@ code {
     animation: shimmer 2s infinite;
 }
 
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideInLeft {
+    from { transform: translateX(-1rem); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-slide-in-left {
+    animation: slideInLeft 0.5s ease-out forwards;
+}

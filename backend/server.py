@@ -1051,9 +1051,18 @@ async def push_to_github(pid: str, payload: Dict[str, Any], user=Depends(get_cur
     if uplan.get("plan") == "free":
         raise HTTPException(402, "GitHub and Production deployment are premium features. Please upgrade.")
     
-    # 2. GitHub Token check
-    if not GITHUB_TOKEN:
-        raise HTTPException(400, "GITHUB_TOKEN not configured. Add a GitHub Personal Access Token in backend/.env")
+    # 2. GitHub Token check (Prioritize user's connected plugin)
+    user_gh = sb.table("jarvis_plugins").select("*").eq("user_id", user["id"]).eq("plugin_id", "github").eq("status", "connected").execute().data
+    effective_token = None
+    if user_gh:
+        effective_token = user_gh[0].get("metadata", {}).get("access_token")
+        log.info(f"Using user's GitHub token for push (UID: {user['id']})")
+    
+    if not effective_token:
+        if not GITHUB_TOKEN:
+            raise HTTPException(400, "GITHUB_TOKEN not configured and no GitHub plugin connected.")
+        effective_token = GITHUB_TOKEN
+        log.info(f"Falling back to system GITHUB_TOKEN for push (UID: {user['id']})")
     
     proj = sb.table("jarvis_projects").select("*").eq("id", pid).eq("user_id", user["id"]).single().execute().data
     if not proj: raise HTTPException(404, "Not found")
@@ -1061,7 +1070,7 @@ async def push_to_github(pid: str, payload: Dict[str, Any], user=Depends(get_cur
     
     subdomain = payload.get("subdomain") or proj["name"].lower().replace("_", "-").replace(" ", "-")[:50]
     try:
-        gh = Github(GITHUB_TOKEN)
+        gh = Github(effective_token)
         gh_user = gh.get_user()
         repo_name = proj["name"] or f"jarvis-app-{pid[:8]}"
         try:

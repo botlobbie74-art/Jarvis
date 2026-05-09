@@ -163,7 +163,7 @@ export default function BillingView() {
 
         <div className={`rounded-2xl p-6 border text-center ${dark ? 'bg-white/5 border-white/10 text-white/40' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
           <p className="text-[13px]">
-            Subscription payments are coming soon. For now, please use the credit top-ups above to fuel your agents.
+            Toutes les transactions sont sécurisées par Stripe. Les crédits mensuels sont ajoutés automatiquement à chaque renouvellement.
           </p>
         </div>
       </div>

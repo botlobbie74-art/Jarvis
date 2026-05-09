@@ -26,10 +26,10 @@ export default function MarketingHome() {
   ];
 
   const INTEGRATIONS = [
-    { title: t('int_business'), desc: t('int_business_desc'), icon: '💳', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
-    { title: t('int_comm'), desc: t('int_comm_desc'), icon: '💬', color: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
-    { title: t('int_intel'), desc: t('int_intel_desc'), icon: '🧠', color: 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100' },
-    { title: t('int_multiplier'), desc: t('int_multiplier_desc'), icon: '⚡', color: 'bg-amber-50 text-amber-600 border-amber-100' },
+    { title: "Google Workspace", desc: "Gmail, Drive, Sheets, Docs, Calendar", icon: '📧' },
+    { title: "GitHub", desc: "Push automatique, gestion de repos", icon: '🐙' },
+    { title: "Telegram", desc: "Bot 24/7, notifications et commandes", icon: '✉️' },
+    { title: "YouTube", desc: "Scripts, stats et réponses via smartermax", icon: '🎯' },
   ];
 
   const HOW = [
@@ -40,11 +40,11 @@ export default function MarketingHome() {
   ];
 
   const FAQ = [
-    { q: t('faq_1_q'), a: t('faq_1_a') },
-    { q: t('faq_2_q'), a: t('faq_2_a') },
-    { q: t('faq_3_q'), a: t('faq_3_a') },
-    { q: t('faq_4_q'), a: t('faq_4_a') },
-    { q: t('faq_5_q'), a: t('faq_5_a') },
+    { q: "C'est quoi exactement un crédit ?", a: "Un crédit = une unité d'action IA. Générer un script YouTube coûte 25 crédits. Nettoyer vos mails coûte 10 crédits. Les appels API simples (rappels, agenda) coûtent 2 crédits. Vous voyez le coût avant chaque mission." },
+    { q: "Le Chief of Staff peut faire quoi concrètement ?", a: "Générer vos scripts YouTube basés sur vos stats de chaîne, trier et répondre à vos mails, analyser les commentaires de vos vidéos et y répondre dans votre style, créer des rappels, générer des rapports sur votre site. En un seul message." },
+    { q: "Mes données Google sont-elles en sécurité ?", a: "Jarvis utilise OAuth 2.0 officiel de Google. Nous ne stockons jamais vos mots de passe. Vous pouvez révoquer l'accès depuis votre compte Google à tout moment." },
+    { q: "Puis-je annuler à tout moment ?", a: "Oui. Sans engagement, sans frais de résiliation. Vos crédits non utilisés du mois en cours restent disponibles jusqu'à la fin de la période." },
+    { q: "La différence entre Pro et Ultra ?", a: "Pro = Chief of Staff complet + App Builder + toutes les intégrations. Ultra = tout ça + Deep Research avancé + accès prioritaire aux nouveaux modèles IA + support chat direct." },
   ];
 
   const dark = true; // Forced dark for brand consistency
@@ -62,7 +62,7 @@ export default function MarketingHome() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button onClick={() => navigate('/login')} className="text-[14px] text-white/70 hover:text-white px-3 h-9 transition-colors">Connexion</button>
-            <button onClick={() => navigate('/login?signup=1')} className="bg-[#0a0a0f] hover:bg-[#0a0a0f]/90 text-black font-bold text-[14px] h-10 px-6 rounded-xl transition-all">Essai gratuit</button>
+            <button onClick={() => navigate('/login?signup=1')} className="bg-white hover:bg-white/90 text-black font-bold text-[14px] h-10 px-6 rounded-xl transition-all shadow-lg shadow-white/5">Essai gratuit</button>
           </div>
         </div>
       </nav>
@@ -95,6 +95,59 @@ export default function MarketingHome() {
             <span className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Enterprise Grade</span>
             <span className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Zero configuration</span>
             <span className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Full Ownership</span>
+          </div>
+        </div>
+      </section>
+
+      {/* CHIEF OF STAFF SECTION */}
+      <section className="py-32 bg-[#0d0d14] relative overflow-hidden border-t border-b border-white/5">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,212,255,0.03),transparent_70%)]" />
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="flex flex-col lg:flex-row items-center gap-16">
+            <div className="flex-1">
+              <div className="inline-block px-3 py-1 rounded-lg bg-indigo-500/20 text-indigo-400 text-[12px] font-bold uppercase tracking-wider mb-6">Nouveau</div>
+              <h2 className="text-[48px] md:text-[60px] font-bold text-white tracking-tighter leading-[0.95] mb-8">
+                Une mission.<br />Six agents.<br />
+                <span className="text-indigo-400">Zéro effort.</span>
+              </h2>
+              <p className="text-[#8888a0] text-[18px] leading-relaxed mb-10 max-w-lg">
+                Envoyez un seul message. Jarvis le découpe, le délègue à vos agents et vous rend un rapport complet.
+              </p>
+              <button onClick={() => navigate('/app')} className="h-14 px-8 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[16px] flex items-center gap-2 transition-all group shadow-xl shadow-indigo-600/20">
+                Essayer le Chief of Staff <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+            
+            <div className="flex-1 w-full max-w-xl">
+              <div className="rounded-3xl bg-black border border-white/10 overflow-hidden shadow-2xl relative">
+                <div className="flex items-center gap-1.5 px-6 py-4 bg-white/5 border-b border-white/10">
+                  <div className="w-3 h-3 rounded-full bg-red-500/30"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/30"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500/30"></div>
+                  <span className="ml-2 text-[12px] font-mono text-white/30 tracking-widest">CHIEF_OF_STAFF_ENGINE</span>
+                </div>
+                <div className="p-8 font-mono text-[14px]">
+                  <div className="text-white mb-6 animate-pulse">
+                    <span className="text-indigo-400">User:</span> Prépare mes 5 scripts YouTube, nettoie mes mails, analyse les stats de mon site et ajoute un rappel demain 14h
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {[
+                      { t: "⚡ Mission parsée en 6 tâches", d: 0 },
+                      { t: "🔄 4 agents lancés en parallèle", d: 300 },
+                      { t: "✅ Gmail nettoyé — 10 crédits", d: 1000 },
+                      { t: "✅ 5 scripts générés — 125 crédits", d: 1500 },
+                      { t: "✅ Rapport analytics prêt — 8 crédits", d: 2000 },
+                      { t: "📋 Rapport consolidé disponible", d: 2500 }
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center gap-3 text-white/70 opacity-0 animate-slide-in-left" style={{ animationDelay: `${item.d}ms` }}>
+                        <span className="text-indigo-400">Jarvis:</span> {item.t}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -227,7 +280,8 @@ export default function MarketingHome() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.05),transparent_60%)]" />
         <div className="max-w-6xl mx-auto px-6 relative z-10">
           <div className="text-center mb-16">
-            <h2 className="text-[36px] md:text-[48px] font-bold tracking-tight mb-4">{t('int_title')}</h2>
+            <h2 className="text-[36px] md:text-[48px] font-bold tracking-tight mb-4">Branché sur votre vie digitale.</h2>
+            <p className="text-[#8888a0] text-[16px]">Chaque connexion est réelle et fonctionnelle dès aujourd'hui.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {INTEGRATIONS.map((integ, i) => (
@@ -332,12 +386,12 @@ export default function MarketingHome() {
       </section>
 
       {/* CTA */}
-      <section className="py-24 bg-slate-900/50 border-t border-b border-white/5 text-white">
+      <section className="py-24 bg-indigo-900/10 border-t border-b border-indigo-500/20 text-white">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="text-[44px] font-semibold tracking-tight">{t('cta_title')}</h2>
-          <p className="text-slate-300 mt-3 text-[16px]">{t('cta_subtitle')}</p>
-          <button onClick={() => navigate('/login?signup=1')} className="mt-8 h-12 px-6 rounded-full bg-white hover:bg-slate-200 text-[#0a0a0f] font-medium inline-flex items-center gap-2 transition-colors">
-            {t('hero_start')} <ArrowRight className="w-4 h-4" />
+          <h2 className="text-[44px] font-bold tracking-tight mb-6">Jarvis est en accès anticipé.</h2>
+          <p className="text-[#8888a0] mt-3 text-[18px] mb-10">Soyez parmi les premiers à automatiser votre vie digitale.</p>
+          <button onClick={() => navigate('/login?signup=1')} className="h-14 px-10 rounded-xl bg-white hover:bg-slate-100 text-black font-bold inline-flex items-center gap-2 transition-all transform hover:scale-105">
+            Rejoindre l'accès anticipé <ArrowRight className="w-5 h-5" />
           </button>
         </div>
       </section>
