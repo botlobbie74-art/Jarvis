@@ -70,50 +70,56 @@ export default function MarketingHome() {
       </nav>
 
       {/* HERO */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-cyan-50/40" />
-        <div className="relative max-w-6xl mx-auto px-6 pt-24 pb-20 text-center">
-          <div className="inline-flex items-center gap-2 bg-slate-900/5 border border-slate-200 rounded-full px-3 py-1 text-[12px] text-slate-700 mb-6">
-            <Sparkles className="w-3.5 h-3.5" /> High-performance AI Agents
+      <section className="relative overflow-hidden pt-32 pb-24 border-b border-slate-50">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,163,255,0.05),transparent_50%)]" />
+        <div className="relative max-w-6xl mx-auto px-6 text-center">
+          <div className="inline-flex items-center gap-2 bg-slate-900/5 border border-slate-200 rounded-full px-4 py-1.5 text-[13px] font-medium text-slate-700 mb-10 hover:bg-slate-900/10 transition-colors cursor-default">
+            <Sparkles className="w-4 h-4 text-cyan-500" /> Professional AI Infrastructure
           </div>
-          <h1 className="text-[56px] md:text-[72px] font-bold tracking-tight text-slate-900 leading-[1.05]">
-            Your autonomous<br />
-            <span className="bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">AI co-worker.</span>
+          <h1 className="text-[64px] md:text-[96px] font-[800] tracking-tighter text-slate-900 leading-[0.95] mb-8">
+            Your Digital Twin.<br />
+            <span className="text-slate-400">Not a Bot.</span>
           </h1>
-          <p className="mt-6 text-[18px] text-slate-600 max-w-2xl mx-auto">
-            Jarvis builds your apps, runs your tasks, browses the web, manages your Google Workspace — and pushes everything to your GitHub. All on its own.
+          <p className="mt-8 text-[20px] md:text-[22px] text-slate-500 max-w-2xl mx-auto leading-relaxed">
+            Scale your productivity, not your workload. The first autonomous AI agent that actually <span className="text-slate-900 font-semibold">understands your business</span> before it speaks.
           </p>
-          <div className="mt-10 flex items-center justify-center gap-3">
-            <button onClick={() => navigate('/login?signup=1')} className="h-12 px-6 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-medium flex items-center gap-2 transition-colors">
-              Start building <ArrowRight className="w-4 h-4" />
+          <div className="mt-12 flex flex-col md:flex-row items-center justify-center gap-4">
+            <button onClick={() => navigate('/login?signup=1')} className="h-14 px-10 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-[16px] flex items-center gap-2 transition-all hover:scale-105 shadow-2xl shadow-slate-900/20">
+              Get Started <ArrowRight className="w-5 h-5" />
             </button>
-            <a href="#how" className="h-12 px-6 rounded-full border border-slate-200 hover:border-slate-300 text-slate-700 font-medium flex items-center transition-colors">
+            <a href="#how" className="h-14 px-10 rounded-full border border-slate-200 hover:border-slate-400 text-slate-900 font-bold text-[16px] flex items-center transition-all bg-white">
               See how it works
             </a>
           </div>
-          <div className="mt-12 flex items-center justify-center gap-8 text-[12px] text-slate-500">
-            <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> Professional Grade</span>
-            <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> Secure OAuth 2.0</span>
-            <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> You own the code</span>
+          <div className="mt-20 flex items-center justify-center gap-10 text-[13px] font-medium text-slate-400 uppercase tracking-widest">
+            <span className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Enterprise Grade</span>
+            <span className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Zero configuration</span>
+            <span className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Full Ownership</span>
           </div>
         </div>
       </section>
 
       {/* FEATURES */}
-      <section id="features" className="py-20 bg-slate-50">
+      <section id="features" className="py-32">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-14">
-            <div className="text-[13px] uppercase tracking-wider text-cyan-600 font-semibold mb-2">Why Jarvis</div>
-            <h2 className="text-[40px] font-semibold text-slate-900 tracking-tight">Everything you need to ship</h2>
+          <div className="mb-20">
+            <div className="inline-block px-3 py-1 rounded-lg bg-red-50 text-red-600 text-[12px] font-bold uppercase tracking-wider mb-6">Visual Intelligence</div>
+            <h2 className="text-[48px] md:text-[64px] font-bold text-slate-900 tracking-tighter leading-[0.95]">
+              Jarvis doesn't just read text.<br />
+              <span className="text-slate-400">He understands your vision.</span>
+            </h2>
+            <p className="mt-8 text-slate-500 text-[18px] max-w-2xl leading-relaxed">
+              It transcribes your ideas, analyzes the context, and plans the entire architecture before composing a single word. The result? Projects that feel eerily human.
+            </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {FEATURES.map((f) => (
-              <div key={f.title} className="bg-white rounded-2xl p-6 border border-slate-200 hover:shadow-lg transition-shadow">
-                <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center mb-4">
-                  <f.icon className="w-5 h-5" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+            {FEATURES.slice(0, 3).map((f) => (
+              <div key={f.title} className="group">
+                <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-6 group-hover:bg-slate-900 group-hover:text-white transition-all duration-300 transform group-hover:rotate-6">
+                  <f.icon className="w-6 h-6" />
                 </div>
-                <div className="text-[17px] font-semibold text-slate-900 mb-1">{f.title}</div>
-                <div className="text-[14px] text-slate-600 leading-relaxed">{f.desc}</div>
+                <div className="text-[20px] font-bold text-slate-900 mb-3">{f.title}</div>
+                <div className="text-[15px] text-slate-500 leading-relaxed">{f.desc}</div>
               </div>
             ))}
           </div>

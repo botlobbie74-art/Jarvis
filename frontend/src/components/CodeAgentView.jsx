@@ -411,17 +411,21 @@ export default function CodeAgentView() {
                   if (!currentGroup) return;
                   const colors = ROLE_COLORS[currentGroup.role] || ROLE_COLORS.jarvis;
                   elements.push(
-                    <details key={`group-${currentGroup.id}`} className={`group p-3 rounded-xl ${dark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-slate-50 hover:bg-slate-100'} transition-colors cursor-pointer`}>
+                    <details key={`group-${currentGroup.id}`} className={`group p-3 rounded-xl ${dark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-slate-50 hover:bg-slate-100'} transition-colors cursor-pointer border border-transparent hover:border-slate-200/50`}>
                       <summary className="flex items-center gap-3 list-none">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${colors.dot} shadow-sm`} />
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-white/5' : 'bg-white shadow-sm border border-slate-100'}`}>
+                          <WingmanFace size={18} />
+                        </div>
                         <div className="flex-1 min-w-0 flex items-center gap-2">
-                          <span className={`text-[11px] font-semibold ${colors.text}`}>{colors.label}</span>
-                          <span className={`text-[11px] font-medium ${dark ? 'text-white/70' : 'text-slate-600'}`}>{currentGroup.type} {currentGroup.paths.length} file{currentGroup.paths.length > 1 ? 's' : ''}</span>
-                          <ChevronDown className="w-3 h-3 opacity-40 group-open:rotate-180 transition-transform" />
+                          <div>
+                            <div className={`text-[11px] font-bold ${colors.text}`}>{colors.label}</div>
+                            <div className={`text-[11px] font-medium ${dark ? 'text-white/70' : 'text-slate-600'}`}>{currentGroup.type} {currentGroup.paths.length} file{currentGroup.paths.length > 1 ? 's' : ''}</div>
+                          </div>
+                          <ChevronDown className="w-3 h-3 opacity-40 group-open:rotate-180 transition-transform ml-1" />
                           <span className={`text-[10px] ml-auto ${dark ? 'text-white/20' : 'text-slate-300'}`}>{new Date(currentGroup.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </summary>
-                      <div className="mt-2 pl-5 space-y-1">
+                      <div className="mt-3 pl-11 space-y-1">
                         {currentGroup.paths.map((p, idx) => (
                           <code key={idx} className={`text-[11px] font-mono block truncate ${dark ? 'text-fuchsia-400/70' : 'text-fuchsia-600'}`}>{p}</code>
                         ))}
@@ -435,9 +439,8 @@ export default function CodeAgentView() {
                   const actions = j.result?.actions || [];
                   const role = j.agent_type?.toLowerCase() || 'jarvis';
                   
-                  // If it's a simple file action, try to group it
                   if (actions.length > 0) {
-                    const actionType = actions[0].action; // 'created' or 'edited'
+                    const actionType = actions[0].action;
                     const paths = actions.map(a => a.path);
 
                     if (currentGroup && currentGroup.role === role && currentGroup.type === actionType) {
@@ -450,17 +453,20 @@ export default function CodeAgentView() {
                     flushGroup();
                     const colors = ROLE_COLORS[role] || ROLE_COLORS.jarvis;
                     elements.push(
-                      <div key={j.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${dark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'} transition-colors`}>
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                          j.status === 'done' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]'
-                          : j.status === 'processing' ? 'bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.5)]'
-                          : j.status === 'failed' ? 'bg-red-400' : dark ? 'bg-white/20' : 'bg-slate-300'
-                        }`} />
+                      <div key={j.id} className={`flex items-start gap-3 px-3 py-3 rounded-xl ${dark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'} transition-colors`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-white/5' : 'bg-white shadow-sm border border-slate-100'}`}>
+                          <WingmanFace size={18} />
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[11px] font-semibold ${colors.text}`}>{colors.label}</span>
-                            <span className={`text-[11px] truncate ${dark ? 'text-white/40' : 'text-slate-500'}`}>{j.payload?.purpose || j.payload?.path || j.payload?.instruction || '...'}</span>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className={`text-[11px] font-bold ${colors.text}`}>{colors.label}</span>
+                            <div className={`w-1.5 h-1.5 rounded-full ${
+                              j.status === 'done' ? 'bg-emerald-400'
+                              : j.status === 'processing' ? 'bg-amber-400 animate-pulse'
+                              : j.status === 'failed' ? 'bg-red-400' : 'bg-slate-300'
+                            }`} />
                           </div>
+                          <p className={`text-[11px] leading-relaxed ${dark ? 'text-white/60' : 'text-slate-600'}`}>{j.payload?.purpose || j.payload?.path || j.payload?.instruction || '...'}</p>
                         </div>
                       </div>
                     );
