@@ -18,57 +18,23 @@ code {
 
 @layer base {
     :root {
-        --background: 0 0% 100%;
-        --foreground: 0 0% 3.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 3.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 3.9%;
-        --primary: 0 0% 9%;
-        --primary-foreground: 0 0% 98%;
-        --secondary: 0 0% 96.1%;
-        --secondary-foreground: 0 0% 9%;
-        --muted: 0 0% 96.1%;
-        --muted-foreground: 0 0% 45.1%;
-        --accent: 0 0% 96.1%;
-        --accent-foreground: 0 0% 9%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 89.8%;
-        --input: 0 0% 89.8%;
-        --ring: 0 0% 3.9%;
-        --chart-1: 12 76% 61%;
-        --chart-2: 173 58% 39%;
-        --chart-3: 197 37% 24%;
-        --chart-4: 43 74% 66%;
-        --chart-5: 27 87% 67%;
-        --radius: 0.5rem;
-    }
-    .dark {
-        --background: 0 0% 3.9%;
+        --bg-primary: #0a0a0f;
+        --bg-secondary: #12121a;
+        --bg-tertiary: #1a1a24;
+        --text-primary: #f0f0f0;
+        --text-secondary: #8888a0;
+        --accent-cyan: #00d4ff;
+        --accent-violet: #7c3aed;
+        --border-subtle: rgba(255, 255, 255, 0.08);
+        
+        /* Shadcn UI compatibility */
+        --background: 240 10% 3.9%;
         --foreground: 0 0% 98%;
-        --card: 0 0% 3.9%;
+        --card: 240 10% 6%;
         --card-foreground: 0 0% 98%;
-        --popover: 0 0% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 14.9%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 0 0% 14.9%;
-        --muted-foreground: 0 0% 63.9%;
-        --accent: 0 0% 14.9%;
-        --accent-foreground: 0 0% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14.9%;
-        --input: 0 0% 14.9%;
-        --ring: 0 0% 83.1%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
+        --border: 240 5% 15%;
+        --primary: 190 100% 50%;
+        --primary-foreground: 240 10% 3.9%;
     }
 }
 
@@ -77,26 +43,60 @@ code {
         @apply border-border;
     }
     body {
-        @apply bg-background text-foreground;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
     }
 }
 
-@keyframes premium-glow {
-    0% { background-position: 0% 50%; box-shadow: 0 0 5px rgba(245,158,11,0.2); }
-    50% { background-position: 100% 50%; box-shadow: 0 0 20px rgba(245,158,11,0.6); }
-    100% { background-position: 0% 50%; box-shadow: 0 0 5px rgba(245,158,11,0.2); }
+/* Premium Animated Gradient Border for Pro Card */
+@keyframes border-rotate {
+    100% { transform: rotate(360deg); }
 }
 
-.animate-premium-glow {
-    background-size: 200% 200%;
-    animation: premium-glow 3s ease infinite;
+.pro-glow-border {
+    position: relative;
+    padding: 1px;
+    background: linear-gradient(to right, var(--accent-cyan), var(--accent-violet));
+    border-radius: 20px;
+    z-index: 0;
+    overflow: hidden;
 }
 
-@keyframes pulse-gentle {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+.pro-glow-border::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    left: -50%;
+    top: -50%;
+    width: 200%;
+    height: 200%;
+    background-color: transparent;
+    background-image: conic-gradient(transparent, var(--accent-cyan), transparent 30%);
+    animation: border-rotate 4s linear infinite;
 }
 
-.animate-pulse-gentle {
-    animation: pulse-gentle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+.pro-glow-border::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    left: 1px;
+    top: 1px;
+    width: calc(100% - 2px);
+    height: calc(100% - 2px);
+    background: var(--bg-secondary);
+    border-radius: 19px;
 }
+
+.card-shadow-cyan {
+    box-shadow: 0 20px 40px -15px rgba(0, 212, 255, 0.15);
+}
+
+@keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+    animation: shimmer 2s infinite;
+}
+

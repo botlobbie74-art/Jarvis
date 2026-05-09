@@ -21,7 +21,10 @@ export const ASSISTANTS = [
 
 export const PLUGIN_ICONS = {
   google: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/google.svg',
-  google_search: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/googlesearchconsole.svg',
+  google_drive: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/googledrive.svg',
+  gmail: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/gmail.svg',
+  google_search: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/google.svg',
+  google_sheets: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/googlesheets.svg',
   youtube: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg',
   github: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/github.svg',
   telegram: 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/telegram.svg',

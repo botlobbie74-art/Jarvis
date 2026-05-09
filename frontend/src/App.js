@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import MarketingHome from './pages/MarketingHome';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
+import Pricing from './pages/Pricing';
 import { Toaster } from './components/ui/toaster';
 
 const ProtectedRoute = ({ children }) => {
@@ -31,6 +32,7 @@ function App() {
             <Routes>
               <Route path="/" element={<MarketingHome />} />
               <Route path="/login" element={<PublicRoute><Landing /></PublicRoute>} />
+              <Route path="/pricing" element={<Pricing />} />
               <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

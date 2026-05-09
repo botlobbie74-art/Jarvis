@@ -349,13 +349,21 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
         recording={recording} onStartRecording={startRecording} onStopRecording={stopRecording}
         dark={dark} 
         user={user}
+        preference={preference}
+        setPreference={setPreference}
+        ultraMode={ultraMode}
+        setUltraMode={setUltraMode}
       />
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileAttach} />
     </div>
   );
 }
 
-const ChatComposer = ({ input, setInput, send, sending, attachedFile, onAttach, onRemoveFile, recording, onStartRecording, onStopRecording, dark, user }) => {
+const ChatComposer = ({ 
+  input, setInput, send, sending, attachedFile, onAttach, onRemoveFile, 
+  recording, onStartRecording, onStopRecording, dark, user,
+  preference, setPreference, ultraMode, setUltraMode 
+}) => {
   const isOutOfCredits = (user?.credits || 0) <= 0;
   return (
     <form onSubmit={send} className={`p-4 border-t ${dark ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white'}`}>

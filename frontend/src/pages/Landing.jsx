@@ -14,7 +14,6 @@ import { t } from '../lib/i18n';
 export default function Landing() {
   const navigate = useNavigate();
   const { login, signup, loginWithGoogle, loginWithGithub } = useAuth();
-  const { theme, toggle } = useTheme();
   const { toast } = useToast();
   const [mode, setMode] = useState(null); // null | 'login' | 'signup'
   const [email, setEmail] = useState('');
@@ -22,8 +21,8 @@ export default function Landing() {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(null);
+  const dark = true; // Public site is forced dark
 
-  const dark = theme === 'dark';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -70,9 +69,7 @@ export default function Landing() {
         {dark && <CodeRain density={0.7} />}
         <div className="relative z-10 px-8 pt-7 flex items-center justify-between">
           <JarvisWordmark dark={dark} />
-          <button onClick={toggle} className={`p-2 rounded-lg transition-colors ${dark ? 'text-white/40 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
-            {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+          {/* Theme toggle removed for brand consistency */}
         </div>
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 pb-10">
           <div className="w-full max-w-[360px] flex flex-col items-center">
