@@ -18,6 +18,7 @@ AGENT_MODEL_MAP = {
     "refactor": {"provider": "mistral", "model": "codestral-latest"},
     "ux": {"provider": "cohere", "model": "command-r-plus"},
     "research": {"provider": "cohere", "model": "command-r-plus"},
+    "deep_research": {"provider": "gemini", "model": "gemini-2.5-flash"},
     "user_sim": {"provider": "cerebras", "model": "llama-3.3-70b"},
     "orchestrator": {"provider": "gemini", "model": "gemini-2.5-flash"},
     "memory": {"provider": "gemini", "model": "gemini-2.5-flash"},
@@ -43,6 +44,14 @@ PROVIDERS = [
      "endpoint": "https://api.cohere.com/v2/chat"},
     {"name": "ollama", "key_env": "OLLAMA_API_KEY", "model": "gemma4:31b-cloud",
      "endpoint": "http://localhost:11434/v1/chat/completions"},
+    {"name": "sambanova", "key_env": "SAMBANOVA_API_KEY", "model": "Meta-Llama-3.3-70B-Instruct",
+     "endpoint": "https://api.sambanova.ai/v1/chat/completions"},
+    {"name": "openrouter", "key_env": "OPENROUTER_API_KEY", "model": "google/gemini-exp-1206:free",
+     "endpoint": "https://openrouter.ai/api/v1/chat/completions"},
+    {"name": "together", "key_env": "TOGETHER_API_KEY", "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+     "endpoint": "https://api.together.xyz/v1/chat/completions"},
+    {"name": "hyperbolic", "key_env": "HYPERBOLIC_API_KEY", "model": "meta-llama/Llama-3.3-70B-Instruct",
+     "endpoint": "https://api.hyperbolic.xyz/v1/chat/completions"},
 ]
 
 def _get_provider(name: str):
@@ -95,7 +104,7 @@ async def llm_call(role: str, system: str, user: str, sb=None) -> dict:
     
     # Define fallback chain (all free/generous tiers)
     fallback_chain = [primary_provider]
-    for fallback in ["gemini", "groq", "cerebras", "cohere"]:
+    for fallback in ["sambanova", "groq", "cerebras", "together", "hyperbolic", "gemini", "openrouter", "cohere"]:
         if fallback not in fallback_chain:
             fallback_chain.append(fallback)
             

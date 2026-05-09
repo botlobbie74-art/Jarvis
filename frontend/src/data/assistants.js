@@ -2,7 +2,7 @@ export const ASSISTANTS = [
   {
     id: 'jarvis',
     name: 'Jarvis',
-    role: 'Your autonomous AI engineer',
+    role: 'Your personal AI agent',
     color: '#22a3ff',
     bg: 'linear-gradient(135deg, #0a2540 0%, #0d3a6b 100%)',
     description: 'Builds apps, writes code, manages your projects, and answers anything.',

@@ -5,19 +5,19 @@ import { WingmanFace, WingmanWordmark } from '../components/WingmanLogo';
 
 const PRICING = [
   {
-    id: 'free', name: 'Free', price: '0', tagline: 'Try Jarvis for free',
+    id: 'casual', name: 'Casual', price: '9.99', tagline: 'For occasional tasks',
     cta: 'Get started', highlight: false,
-    features: ['1000 Free Credits to start', 'Pay as you go afterwards', 'Google + GitHub plugins', '1 GitHub repo push', 'Community support'],
+    features: ['1,000 Credits included / month', 'Pay as you go top-ups', 'Google + GitHub plugins', '5 GitHub repo pushes', 'Community support'],
   },
   {
-    id: 'starter', name: 'Starter', price: '19.99', tagline: 'For solo builders',
+    id: 'pro', name: 'Pro Builder', price: '24.99', tagline: 'For solo builders',
     cta: 'Start building', highlight: true, badge: 'Most popular',
-    features: ['5000 Credits included / month', 'Unlimited chat', 'All plugins (Telegram + Discord)', 'Unlimited GitHub pushes', 'Priority email support', 'Background tasks'],
+    features: ['2,500 Credits included / month', 'Unlimited chat', 'All plugins (Telegram + Discord)', 'Unlimited GitHub pushes', 'Priority email support', 'Background tasks'],
   },
   {
-    id: 'pro', name: 'Pro', price: '49.99', tagline: 'For teams & power users',
-    cta: 'Go Pro', highlight: false,
-    features: ['15000 Credits included / month', 'Unlimited chat', 'All plugins + custom plugins', 'Multi-seat (5 users)', 'Priority chat support', 'Advanced agent orchestration', 'Early access to new features'],
+    id: 'elite', name: 'Elite Agent', price: '49.99', tagline: 'For power users',
+    cta: 'Go Elite', highlight: false,
+    features: ['5,000 Credits included / month', 'Unlimited chat', 'All plugins + custom plugins', 'Multi-seat (5 users)', 'Priority chat support', 'Deep Research access', 'Early access to new features'],
   },
 ];
 

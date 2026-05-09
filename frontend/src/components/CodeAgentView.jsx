@@ -36,6 +36,7 @@ export default function CodeAgentView() {
   const [previewSrc, setPreviewSrc] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [showRepoMenu, setShowRepoMenu] = useState(false);
+  const [autoBuild, setAutoBuild] = useState(true);
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
   const { toast } = useToast();
@@ -127,7 +128,14 @@ export default function CodeAgentView() {
       setDescription('');
       setAttachedFile(null);
       await openProject(data.id);
-      toast({ title: 'Plan ready', description: 'Review the plan, then build.' });
+      if (autoBuild) {
+        toast({ title: 'Plan ready', description: 'Starting auto-build in 2 seconds...' });
+        setTimeout(() => {
+          api.post(`/projects/${data.id}/build`).catch(()=>{});
+        }, 2000);
+      } else {
+        toast({ title: 'Plan ready', description: 'Review the plan, then build.' });
+      }
     } catch (e) {
       toast({ title: 'Plan failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
     } finally { setCreating(false); }
@@ -214,9 +222,10 @@ export default function CodeAgentView() {
                     const f = e.target.files?.[0];
                     if (f) { setAttachedFile(f); toast({ title: `${f.name} attached` }); }
                   }} />
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium ${dark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
-                  <Sparkles className="w-3.5 h-3.5" /><span>Autonomous Agent Active</span>
-                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={autoBuild} onChange={(e) => setAutoBuild(e.target.checked)} className="rounded border-slate-300 text-cyan-500 focus:ring-cyan-500 bg-white/10" />
+                  <span className={`text-[12px] font-medium ${dark ? 'text-white/60' : 'text-slate-500'}`}>Auto-Build</span>
+                </label>
               </div>
               <button onClick={createPlan} disabled={creating || !description.trim()}
                 className={`h-11 px-6 rounded-full flex items-center gap-2 transition-colors disabled:opacity-40 font-semibold text-[14px] ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
@@ -287,10 +296,10 @@ export default function CodeAgentView() {
           </div>
         )}
 
-        <button onClick={build} disabled={building}
-          className={`h-9 px-4 rounded-xl text-[13px] font-semibold flex items-center gap-2 disabled:opacity-60 transition-all ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+        <button onClick={build} disabled={building || active.files?.length > 0}
+          className={`h-9 px-4 rounded-xl text-[13px] font-semibold flex items-center gap-2 disabled:opacity-60 disabled:hidden transition-all ${dark ? 'bg-white text-black hover:bg-white/90' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
           {building ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          {building ? 'Building...' : (active.files?.length ? 'Rebuild' : 'Build')}
+          {building ? 'Building...' : 'Build'}
         </button>
 
         <div className="relative">
@@ -398,19 +407,32 @@ export default function CodeAgentView() {
                 const role = j.agent_type?.toLowerCase() || 'jarvis';
                 const colors = ROLE_COLORS[role] || ROLE_COLORS.jarvis;
 
-                if (actions.length > 0) return actions.map((a, i) => (
-                  <div key={`${j.id}-${i}`} className={`flex items-start gap-3 p-3 rounded-xl ${dark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-slate-50 hover:bg-slate-100'} transition-colors`}>
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${colors.dot} shadow-sm`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[11px] font-semibold ${colors.text}`}>{colors.label}</span>
-                        <span className={`text-[11px] ${dark ? 'text-white/30' : 'text-slate-400'}`}>{a.action}</span>
-                        <span className={`text-[10px] ml-auto ${dark ? 'text-white/20' : 'text-slate-300'}`}>{new Date(j.finished_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                if (actions.length > 0) {
+                  const groupedByAction = actions.reduce((acc, a) => {
+                    if (!acc[a.action]) acc[a.action] = [];
+                    acc[a.action].push(a.path);
+                    return acc;
+                  }, {});
+                  
+                  return Object.entries(groupedByAction).map(([actionName, paths], i) => (
+                    <details key={`${j.id}-${i}`} className={`group p-3 rounded-xl ${dark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-slate-50 hover:bg-slate-100'} transition-colors cursor-pointer`}>
+                      <summary className="flex items-center gap-3 list-none">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${colors.dot} shadow-sm`} />
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <span className={`text-[11px] font-semibold ${colors.text}`}>{colors.label}</span>
+                          <span className={`text-[11px] font-medium ${dark ? 'text-white/70' : 'text-slate-600'}`}>{actionName} {paths.length} file{paths.length > 1 ? 's' : ''}</span>
+                          <ChevronDown className="w-3 h-3 opacity-40 group-open:rotate-180 transition-transform" />
+                          <span className={`text-[10px] ml-auto ${dark ? 'text-white/20' : 'text-slate-300'}`}>{new Date(j.finished_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      </summary>
+                      <div className="mt-2 pl-5 space-y-1">
+                        {paths.map(path => (
+                          <code key={path} className={`text-[11px] font-mono block truncate ${dark ? 'text-fuchsia-400/70' : 'text-fuchsia-600'}`}>{path}</code>
+                        ))}
                       </div>
-                      <code className={`text-[11px] font-mono block mt-1 truncate ${dark ? 'text-fuchsia-400/70' : 'text-fuchsia-600'}`}>{a.path}</code>
-                    </div>
-                  </div>
-                ));
+                    </details>
+                  ));
+                }
 
                 return (
                   <div key={j.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${dark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'} transition-colors`}>

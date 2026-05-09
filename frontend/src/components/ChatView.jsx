@@ -121,7 +121,7 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
         <div className="flex-1 flex flex-col items-center justify-center px-8">
           <BotAvatar size={90} dark={dark} />
           <h2 className={`mt-6 text-[28px] font-semibold text-center ${dark ? 'text-white' : 'text-slate-900'}`}>What can I do for you today?</h2>
-          <p className={`mt-2 text-center max-w-sm ${dark ? 'text-white/40' : 'text-slate-500'}`}>Ask me anything — I can build apps, write code, review your projects, or just chat.</p>
+          <p className={`mt-2 text-center max-w-sm ${dark ? 'text-white/40' : 'text-slate-500'}`}>Ask me anything — I can build apps, fetch your YouTube stats, create Google Sheets, or manage your plugins.</p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             {[
               "Where is my project at?",
@@ -147,7 +147,7 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
         <BotAvatar size={32} dark={dark} />
         <div className="flex-1">
           <div className={`text-[15px] font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Jarvis</div>
-          <div className="text-[12px] text-[#22a3ff]">Your autonomous AI engineer</div>
+          <div className="text-[12px] text-[#22a3ff]">Your personal AI agent</div>
         </div>
       </header>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-6">

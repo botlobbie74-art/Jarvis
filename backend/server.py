@@ -100,7 +100,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 # ============ BILLING (CREDITS) ============
 CREDIT_PRICES = {"1000": 10.0, "5000": 40.0, "10000": 70.0}
-TOKEN_TO_CREDIT_RATE = 0.001
+TOKEN_TO_CREDIT_RATE = 0.0001
 BUILD_FLAT_FEE = 5.0
 
 def _user_credits(uid: str) -> float:
@@ -124,7 +124,8 @@ def _update_credits(uid: str, amount: float, description: str = None):
 
 def _check_credits(uid: str, required: float = 0.0):
     balance = _user_credits(uid)
-    if balance < required:
+    # Allow a small grace overdraft up to -50 credits so jobs don't randomly fail mid-file
+    if balance < required and balance < -50.0:
         raise HTTPException(402, f"Insufficient credits. Balance: {balance:.2f}. Please top up.")
 
 def _consume_credits(uid: str, amount: float, description: str):
@@ -284,9 +285,10 @@ If a tool is connected, use it. Do not just reply, take action.
 
 YOUR ROLE:
 1. PERSONAL ASSISTANT: Help the user with general tasks, questions, and coordination.
-2. STATUS REPORTER: When asked about a project, summarize the recent activity.
-3. RELAY TO BUILDER: For development tasks, respond with BUILDER_ACTION: <instruction>.
-4. RELAY TO TASKS: For automations, respond with TASK_ACTION: <description>.
+2. RESEARCHER: Never hallucinate facts. For any complex or current topics, use the deep_research agent or research tools to find details before answering.
+3. STATUS REPORTER: When asked about a project, summarize the recent activity.
+4. RELAY TO BUILDER: For development tasks, respond with BUILDER_ACTION: <instruction>.
+5. RELAY TO TASKS: For automations, respond with TASK_ACTION: <description>.
 5. TOOL USE: When using a tool, output your tool-use actions in the format:
 TOOL_ACTION: <name_of_tool> | <instruction/query>
 
@@ -778,7 +780,10 @@ async def push_to_github(pid: str, user=Depends(get_current_user)):
         try:
             repo = gh_user.get_repo(repo_name)
         except GithubException:
-            repo = gh_user.create_repo(name=repo_name, description=proj.get("description", "Built by Jarvis")[:200], auto_init=True, private=False)
+            import re
+            desc = proj.get("description", "Built by Jarvis")[:200]
+            desc = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', desc)
+            repo = gh_user.create_repo(name=repo_name, description=desc, auto_init=True, private=False)
         for f in files:
             try:
                 existing = repo.get_contents(f["path"])
