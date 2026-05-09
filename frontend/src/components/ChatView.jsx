@@ -297,7 +297,7 @@ export default function ChatView({ sessionId, onNewChat, onSessionUpdated, onOpe
   );
 }
 
-const ChatComposer = ({ input, setInput, send, sending, attachedFile, onAttach, onRemoveFile, dark }) => (
+const ChatComposer = ({ input, setInput, send, sending, attachedFile, onAttach, onRemoveFile, recording, onStartRecording, onStopRecording, dark }) => (
   <form onSubmit={send} className={`p-4 border-t ${dark ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white'}`}>
     {attachedFile && (
       <div className={`max-w-3xl mx-auto mb-2 flex items-center gap-2 px-3 py-2 border rounded-lg ${dark ? 'bg-white/5 border-white/10 text-white/70' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>

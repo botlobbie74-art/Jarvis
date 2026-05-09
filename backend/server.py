@@ -368,22 +368,7 @@ async def send_message(payload: ChatMessageIn, user=Depends(get_current_user)):
     except Exception as e:
         log.exception("LLM err"); reply = f"(LLM error: {str(e)[:200]})"
         meta = {"agent_type": "error"}
-# ============ AUTOMATED DELEGATION ============
-async def delegate_task(uid: str, pid: str, instruction: str):
-    # Ask CEO agent to determine the best specialist for this task
-    prompt = f"User wants: {instruction}\n\nAnalyze this request and determine which of these agents is best suited to execute it: Architect, Backend, Frontend, Infra, Security, Refactor, UX, Research, User_Sim, QA_Test, Bug_Hunter, Performance, Exploit.\n\nReturn ONLY the name of the agent type."
-    res = await router_call("ceo", "You are the CEO Agent. Act as a dispatcher.", prompt, sb=sb)
-    agent_type = res["content"].strip().lower()
 
-    # Enqueue a job for this agent
-    job = {"id": str(uuid.uuid4()), "project_id": pid, "agent_type": agent_type, 
-           "status": "queued", "payload": {"instruction": instruction}}
-    sb.table("jarvis_agent_jobs").insert(job).execute()
-    asyncio.create_task(_run_job(job["id"]))
-    return agent_type
-
-# ============ CHAT ============
-...
     # Detect actions in response
     builder_action = None
     task_action = None
@@ -401,7 +386,6 @@ async def delegate_task(uid: str, pid: str, instruction: str):
             builder_action = {"description": f"Delegated to {agent}: {action_text}", "agent": agent}
 
     if "TASK_ACTION:" in reply:
-...
         parts = reply.split("TASK_ACTION:", 1)
         if display_content == reply: display_content = parts[0].strip()
         action_text = parts[1].strip().split("\n")[0].strip()
@@ -429,6 +413,20 @@ async def delegate_task(uid: str, pid: str, instruction: str):
     if builder_action: row["builder_action"] = builder_action
     if task_action: row["task_action"] = task_action
     return row
+
+# ============ AUTOMATED DELEGATION ============
+async def delegate_task(uid: str, pid: str, instruction: str):
+    # Ask CEO agent to determine the best specialist for this task
+    prompt = f"User wants: {instruction}\n\nAnalyze this request and determine which of these agents is best suited to execute it: Architect, Backend, Frontend, Infra, Security, Refactor, UX, Research, User_Sim, QA_Test, Bug_Hunter, Performance, Exploit.\n\nReturn ONLY the name of the agent type."
+    res = await router_call("ceo", "You are the CEO Agent. Act as a dispatcher.", prompt, sb=sb)
+    agent_type = res["content"].strip().lower()
+
+    # Enqueue a job for this agent
+    job = {"id": str(uuid.uuid4()), "project_id": pid, "agent_type": agent_type, 
+           "status": "queued", "payload": {"instruction": instruction}}
+    sb.table("jarvis_agent_jobs").insert(job).execute()
+    asyncio.create_task(_run_job(job["id"]))
+    return agent_type
 
 # ============ PLUGINS ============
 DEFAULT_PLUGINS = [

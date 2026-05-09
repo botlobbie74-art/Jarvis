@@ -233,10 +233,10 @@ export default function CodeAgentView() {
                   <span className={`text-[12px] font-medium ${dark ? 'text-white/60' : 'text-slate-500'}`}>Auto-Build</span>
                 </label>
                 <div className={`w-px h-4 ${dark ? 'bg-white/10' : 'bg-slate-200'}`} />
-                <button onClick={() => setUltraMode(!ultraMode)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all border ${ultraMode ? 'bg-amber-500/10 border-amber-500/50 text-amber-400' : dark ? 'bg-white/5 border-white/10 text-white/40' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
-                  <Sparkles className={`w-3 h-3 ${ultraMode ? 'animate-pulse' : ''}`} />
-                  <span className="text-[11px] font-bold">{ultraMode ? 'ULTRA SMART' : 'SMART'}</span>
+                <button onClick={() => toast({ title: 'Ultra Smart is Coming Soon', description: 'This mode will use GPT-4, Claude 3.5 and Gemini Pro for massive projects.' })}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all border ${dark ? 'bg-white/5 border-white/10 text-white/30' : 'bg-slate-50 border-slate-200 text-slate-400'} opacity-60 cursor-help`}>
+                  <Sparkles className="w-3 h-3" />
+                  <span className="text-[10px] font-bold">ULTRA (SOON)</span>
                 </button>
               </div>
               <button onClick={createPlan} disabled={creating || !description.trim()}
