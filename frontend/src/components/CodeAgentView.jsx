@@ -53,7 +53,7 @@ export default function CodeAgentView() {
   const chatEndRef = useRef(null);
   const { toast } = useToast();
   const { theme, toggle } = useTheme();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const dark = theme === 'dark';
   const isFree = user?.plan === 'free';
 
@@ -157,6 +157,7 @@ export default function CodeAgentView() {
       setDescription('');
       setAttachedFile(null);
       await openProject(data.id);
+      refreshUser();
       if (autoBuild) {
         toast({ title: 'Plan ready', description: 'Starting auto-build in 2 seconds...' });
         setTimeout(() => {
@@ -177,6 +178,7 @@ export default function CodeAgentView() {
     try {
       await api.post(`/projects/${active.project.id}/build`, { ultra: ultraMode });
       await openProject(active.project.id);
+      refreshUser();
       toast({ title: 'Build complete' });
     } catch (e) {
       toast({ title: 'Build failed', description: e?.response?.data?.detail || '', variant: 'destructive' });
@@ -268,10 +270,14 @@ export default function CodeAgentView() {
                     <span className={`text-[12px] font-medium ${dark ? 'text-white/60' : 'text-slate-500'}`}>Auto-Build</span>
                   </label>
                   <div className={`w-px h-4 ${dark ? 'bg-white/10' : 'bg-slate-200'}`} />
-                  <button onClick={() => toast({ title: 'Ultra Smart is Coming Soon', description: 'This mode will use GPT-4, Claude 3.5 and Gemini Pro for massive projects.' })}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all border ${dark ? 'bg-white/5 border-white/10 text-white/30' : 'bg-slate-50 border-slate-200 text-slate-400'} opacity-60 cursor-help`}>
-                    <Sparkles className="w-3 h-3" />
-                    <span className="text-[10px] font-bold">ULTRA (SOON)</span>
+                  <button onClick={() => setUltraMode(!ultraMode)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all border ${
+                      ultraMode 
+                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]' 
+                        : dark ? 'bg-white/5 border-white/10 text-white/30' : 'bg-slate-50 border-slate-200 text-slate-400'
+                    }`}>
+                    <Sparkles className={`w-3.5 h-3.5 ${ultraMode ? 'animate-pulse' : ''}`} />
+                    <span className="text-[10px] font-bold">ULTRA MODE</span>
                   </button>
                 </div>
                 <button onClick={createPlan} disabled={creating || !description.trim() || (isFree && (user?.credits || 0) <= 0)}
@@ -377,9 +383,16 @@ export default function CodeAgentView() {
               }
             }} 
             disabled={pushing} 
-            className={`h-8 px-4 rounded-lg text-[12px] font-bold transition-all flex items-center gap-1.5 ${isFree ? 'bg-slate-200 text-slate-500 dark:bg-white/5' : 'bg-slate-900 dark:bg-white text-white dark:text-black hover:opacity-90'}`}
+            className={`h-8 px-4 rounded-lg text-[12px] font-bold transition-all flex items-center gap-1.5 relative overflow-hidden ${
+              isFree 
+                ? 'bg-slate-200 text-slate-500 dark:bg-white/5' 
+                : ultraMode
+                  ? 'bg-gradient-to-r from-amber-500 via-orange-600 to-amber-500 text-white animate-premium-glow shadow-[0_0_20px_rgba(245,158,11,0.5)]'
+                  : 'bg-slate-900 dark:bg-white text-white dark:text-black hover:opacity-90'
+            }`}
           >
-            <Rocket className="w-3.5 h-3.5" />
+            {ultraMode && <span className="absolute inset-0 bg-white/20 animate-pulse" />}
+            <Rocket className={`w-3.5 h-3.5 ${ultraMode ? 'animate-bounce' : ''}`} />
             Deploy
           </button>
         </div>
@@ -480,10 +493,16 @@ export default function CodeAgentView() {
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                           <div>
                             <div className={`text-[10px] font-bold uppercase tracking-widest ${colors.text}`}>{colors.label}</div>
-                            <div className={`text-[12px] font-semibold ${dark ? 'text-white/80' : 'text-slate-700'}`}>{currentGroup.type} {currentGroup.paths.length} file{currentGroup.paths.length > 1 ? 's' : ''}</div>
+                            <div className={`text-[12px] font-semibold ${dark ? 'text-white/80' : 'text-slate-700'}`}>
+                              {currentGroup.type} {currentGroup.paths.length} file{currentGroup.paths.length > 1 ? 's' : ''}
+                              {j.result?.model && <span className="ml-2 opacity-30 font-mono text-[10px]">({j.result.model}) {j.result.tier && `[${j.result.tier}]`}</span>}
+                            </div>
                           </div>
                           <ChevronDown className="w-3 h-3 opacity-20 group-open:rotate-180 transition-transform ml-1" />
-                          <span className={`text-[10px] ml-auto font-mono opacity-20`}>{new Date(currentGroup.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                          <div className="ml-auto text-right">
+                            <div className={`text-[10px] font-mono opacity-20`}>{new Date(currentGroup.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                            {j.result?.cost && <div className="text-[9px] text-amber-500 font-bold">-{j.result.cost.toFixed(2)} cred</div>}
+                          </div>
                         </div>
                       </summary>
                       <div className="mt-3 pl-11 space-y-1.5 pb-2">
@@ -523,12 +542,16 @@ export default function CodeAgentView() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <span className={`text-[11px] font-bold ${colors.text}`}>{colors.label}</span>
-                            <div className={`w-1.5 h-1.5 rounded-full ${
-                              j.status === 'done' ? 'bg-emerald-400'
-                              : j.status === 'processing' ? 'bg-amber-400 animate-pulse'
-                              : j.status === 'failed' ? 'bg-red-400' : 'bg-slate-300'
-                            }`} />
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[11px] font-bold ${colors.text}`}>{colors.label}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className={`w-1.5 h-1.5 rounded-full ${
+                                j.status === 'done' ? 'bg-emerald-400'
+                                : j.status === 'processing' ? 'bg-amber-400 animate-pulse'
+                                : j.status === 'failed' ? 'bg-red-400' : 'bg-slate-300'
+                              }`} />
+                            </div>
                           </div>
                           <p className={`text-[11px] leading-relaxed ${dark ? 'text-white/60' : 'text-slate-600'}`}>{j.payload?.purpose || j.payload?.path || j.payload?.instruction || '...'}</p>
                         </div>

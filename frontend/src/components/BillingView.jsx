@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { Loader2, CreditCard, Check, Crown, Zap, Sparkles, ExternalLink } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
+import { t } from '../lib/i18n';
 
 const PLAN_INFO = {
   free:    { name: 'Free', color: '#64748b' },
@@ -24,8 +25,13 @@ export default function BillingView() {
     setLoading(true);
     try {
       const { data } = await api.get('/billing/plan');
-      setData(data);
-    } finally { setLoading(false); }
+      setData(data || {});
+    } catch (e) {
+      setData({}); // Fallback to avoid infinite loader
+      toast({ title: 'Error loading billing data', variant: 'destructive' });
+    } finally { 
+      setLoading(false); 
+    }
   };
   useEffect(() => { load(); }, []);
 

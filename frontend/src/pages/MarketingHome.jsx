@@ -25,16 +25,11 @@ export default function MarketingHome() {
     },
   ];
 
-  const FEATURES = [
-    { icon: Bot, title: t('feat_1_title'), desc: t('feat_1_desc') },
-    { icon: Globe, title: t('feat_2_title'), desc: t('feat_2_desc') },
-    { icon: Calendar, title: t('feat_3_title'), desc: t('feat_3_desc') },
-    { icon: Plug, title: t('feat_4_title'), desc: t('feat_4_desc') },
-    { icon: Hammer, title: t('feat_5_title'), desc: t('feat_5_desc') },
-    { icon: Zap, title: t('feat_6_title'), desc: t('feat_6_desc') },
-    { icon: MessageSquare, title: t('feat_7_title'), desc: t('feat_7_desc') },
-    { icon: Code2, title: t('feat_8_title'), desc: t('feat_8_desc') },
-    { icon: Sparkles, title: t('feat_9_title'), desc: t('feat_9_desc') },
+  const INTEGRATIONS = [
+    { title: t('int_business'), desc: t('int_business_desc'), icon: '💳', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+    { title: t('int_comm'), desc: t('int_comm_desc'), icon: '💬', color: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+    { title: t('int_intel'), desc: t('int_intel_desc'), icon: '🧠', color: 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100' },
+    { title: t('int_multiplier'), desc: t('int_multiplier_desc'), icon: '⚡', color: 'bg-amber-50 text-amber-600 border-amber-100' },
   ];
 
   const HOW = [
@@ -76,12 +71,12 @@ export default function MarketingHome() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,163,255,0.05),transparent_50%)]" />
         <div className="relative max-w-6xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 bg-slate-900/5 border border-slate-200 rounded-full px-4 py-1.5 text-[13px] font-medium text-slate-700 mb-10 hover:bg-slate-900/10 transition-colors cursor-default">
-            <Sparkles className="w-4 h-4 text-cyan-500" /> {t('hero_badge')}
+            <Sparkles className="w-4 h-4 text-cyan-500" /> Jarvis OS 2.0
           </div>
-          <h1 className="text-[64px] md:text-[96px] font-[900] tracking-tighter text-slate-900 leading-[0.9] mb-8">
-            Anything<br />
+          <h1 className="text-[54px] md:text-[80px] font-[900] tracking-tighter text-slate-900 leading-[1.0] mb-8">
+            {t('hero_badge').split('.')[0]}.<br />
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#22a3ff] via-[#8b5cf6] to-[#f59e0b] animate-gradient-x">
-              you want.
+              {t('hero_badge').split('.')[1] ? t('hero_badge').split('.')[1].trim() + '.' : ''}
             </span>
           </h1>
           <p className="mt-8 text-[20px] md:text-[22px] text-slate-500 max-w-2xl mx-auto leading-relaxed">
@@ -103,11 +98,11 @@ export default function MarketingHome() {
         </div>
       </section>
 
-      {/* FEATURES */}
+      {/* FEATURES - BENTO GRID */}
       <section id="features" className="py-32">
         <div className="max-w-6xl mx-auto px-6">
           <div className="mb-20">
-            <div className="inline-block px-3 py-1 rounded-lg bg-cyan-50 text-cyan-600 text-[12px] font-bold uppercase tracking-wider mb-6">Autonomous Engineering</div>
+            <div className="inline-block px-3 py-1 rounded-lg bg-cyan-50 text-cyan-600 text-[12px] font-bold uppercase tracking-wider mb-6">Cognitive System</div>
             <h2 className="text-[48px] md:text-[64px] font-bold text-slate-900 tracking-tighter leading-[0.95]">
               {t('features_title')}<br />
               <span className="text-slate-400">{t('features_subtitle')}</span>
@@ -116,14 +111,129 @@ export default function MarketingHome() {
               {t('features_desc')}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {FEATURES.slice(0, 3).map((f) => (
-              <div key={f.title} className="group">
-                <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-6 group-hover:bg-slate-900 group-hover:text-white transition-all duration-300 transform group-hover:rotate-6">
-                  <f.icon className="w-6 h-6" />
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[300px]">
+            {/* Grand Bloc (Gauche) - L'Ingénieur de Production */}
+            <div className="md:col-span-2 md:row-span-2 rounded-[40px] bg-slate-900 text-white p-12 overflow-hidden relative group border border-slate-800 shadow-2xl">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="relative z-10 flex flex-col h-full">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-white/5 rounded-2xl backdrop-blur-md border border-white/10 text-cyan-400">
+                    <Code2 size={32} />
+                  </div>
+                  <span className="font-bold text-slate-400 uppercase tracking-widest text-[14px]">{t('feat_builder_title')}</span>
                 </div>
-                <div className="text-[20px] font-bold text-slate-900 mb-3">{f.title}</div>
-                <div className="text-[15px] text-slate-500 leading-relaxed">{f.desc}</div>
+                <h3 className="text-[42px] font-bold mb-4 leading-tight">{t('feat_builder_title_copy') || "De l'idée au commit."}</h3>
+                <p className="text-slate-400 text-[18px] leading-relaxed max-w-md">{t('feat_builder_desc')}</p>
+                
+                <div className="mt-auto rounded-2xl bg-black/50 p-6 font-mono text-[13px] text-cyan-400 overflow-hidden border border-white/5 shadow-inner relative group-hover:border-cyan-500/30 transition-colors">
+                  <div className="flex items-center gap-1.5 mb-4">
+                    <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
+                    <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
+                    <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
+                  </div>
+                  <p className="text-slate-500 italic mb-2"># jarvis build --platform production</p>
+                  <p className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> Architecture: Cloud-Native Microservices</p>
+                  <p className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> Frontend: React 19 + Tailwind 4</p>
+                  <p className="flex items-center gap-2 text-white animate-pulse">● Deploying to GitHub...</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Moyen Bloc (Droite) - L'Intégrateur Workspace */}
+            <div className="md:col-span-1 md:row-span-2 rounded-[40px] bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 p-10 relative overflow-hidden group shadow-xl">
+              <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="flex flex-col h-full">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-indigo-100 rounded-2xl text-indigo-600">
+                    <Plug size={28} />
+                  </div>
+                  <span className="font-bold text-indigo-400 uppercase tracking-widest text-[14px]">{t('feat_workspace_title')}</span>
+                </div>
+                <h3 className="text-[28px] font-bold text-slate-900 mb-4 leading-tight">{t('feat_workspace_title_copy') || "Votre écosystème, sous stéroïdes."}</h3>
+                <p className="text-slate-600 text-[16px] leading-relaxed">{t('feat_workspace_desc')}</p>
+                
+                <div className="mt-auto space-y-4">
+                  {[
+                    { img: 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg', color: 'bg-blue-500', delay: '0' },
+                    { img: 'https://upload.wikimedia.org/wikipedia/commons/e/e0/Google_Sheets.png', color: 'bg-green-500', delay: '75' },
+                    { img: 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg', color: 'bg-red-500', delay: '150' }
+                  ].map((tool, idx) => (
+                    <div key={idx} className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-indigo-50 shadow-sm transform group-hover:-translate-x-2 transition-transform" style={{ transitionDelay: `${tool.delay}ms` }}>
+                      <img src={tool.tool_img || tool.img} className="w-6 h-6 object-contain" alt="" />
+                      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full ${tool.color} animate-pulse`} style={{ width: '85%' }}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Petit Bloc (Bas Gauche) - Web Intelligence */}
+            <div className="rounded-[40px] bg-white border border-slate-200 p-8 shadow-lg relative overflow-hidden group hover:border-cyan-200 transition-all">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-cyan-50 rounded-2xl text-cyan-600">
+                  <Globe size={24} />
+                </div>
+                <span className="font-bold text-cyan-400 uppercase tracking-widest text-[12px]">{t('feat_web_title')}</span>
+              </div>
+              <h3 className="text-[22px] font-bold text-slate-900 mb-3">{t('feat_web_title_copy') || "Intelligence Web"}</h3>
+              <p className="text-slate-500 text-[15px] leading-relaxed">{t('feat_web_desc')}</p>
+              <div className="absolute -bottom-2 -right-2 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Globe size={80} className="text-cyan-900" />
+              </div>
+            </div>
+
+            {/* Petit Bloc (Bas Droite) - Background Tasks */}
+            <div className="md:col-span-2 rounded-[40px] bg-slate-50 border border-slate-200 p-8 relative overflow-hidden group hover:bg-white transition-colors shadow-sm">
+              <div className="flex md:flex-row flex-col gap-8 h-full items-center">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-slate-900 rounded-2xl text-white">
+                      <Zap size={24} />
+                    </div>
+                    <span className="font-bold text-slate-400 uppercase tracking-widest text-[12px]">{t('feat_background_title')}</span>
+                  </div>
+                  <h3 className="text-[22px] font-bold text-slate-900 mb-3">{t('feat_background_title_copy') || "Autonomie en arrière-plan"}</h3>
+                  <p className="text-slate-600 text-[15px] leading-relaxed max-w-sm">{t('feat_background_desc')}</p>
+                </div>
+                <div className="w-full md:w-72 bg-white border border-slate-200 rounded-3xl p-6 shadow-xl transform group-hover:scale-105 transition-transform">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-[14px] font-bold text-slate-900">Morning Briefing</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold">READY</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="w-full h-full bg-emerald-500"></div>
+                    </div>
+                    <p className="text-[12px] text-slate-500">Jarvis processed 24 tasks while you were away.</p>
+                    <div className="flex gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center"><MessageSquare size={14} className="text-indigo-600" /></div>
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center"><Check size={14} className="text-emerald-600" /></div>
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center"><Calendar size={14} className="text-amber-600" /></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* INTEGRATIONS */}
+      <section className="py-24 bg-slate-900 text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.15),transparent_60%)]" />
+        <div className="max-w-6xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-16">
+            <h2 className="text-[36px] md:text-[48px] font-bold tracking-tight mb-4">{t('int_title')}</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {INTEGRATIONS.map((integ, i) => (
+              <div key={i} className={`p-6 rounded-2xl border ${integ.color} bg-white/5 backdrop-blur-sm`}>
+                <div className="text-3xl mb-4">{integ.icon}</div>
+                <h3 className="text-[18px] font-bold mb-2">{integ.title}</h3>
+                <p className="text-[14px] opacity-80 leading-relaxed">{integ.desc}</p>
               </div>
             ))}
           </div>

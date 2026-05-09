@@ -30,9 +30,11 @@ const ROLE_COLORS = {
 };
 
 export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated }) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const [ultraMode, setUltraMode] = useState(false);
+  const [preference, setPreference] = useState('balanced');
   const [sending, setSending] = useState(false);
   const isOutOfCredits = (user?.credits || 0) <= 0;
   const [loading, setLoading] = useState(false);
@@ -108,7 +110,13 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
     setAttachedFile(null);
     setSending(true);
     try {
-      const { data } = await api.post('/chat/send', { session_id: sid, message: messageContent, assistant_id: 'jarvis' });
+      const { data } = await api.post('/chat/send', { 
+        session_id: sid, 
+        message: messageContent, 
+        assistant_id: 'jarvis',
+        ultra: ultraMode,
+        preference: preference
+      });
 
       // Check for special actions
       if (data.builder_action) setBuilderAction(data.builder_action);
@@ -116,6 +124,7 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
 
       setMessages((m) => [...m, data]);
       onSessionUpdated?.();
+      refreshUser();
     } catch (err) {
       toast({ title: 'Failed to send', description: err?.response?.data?.detail || 'try again', variant: 'destructive' });
     } finally {
@@ -254,7 +263,6 @@ export default function ChatView({ sessionId, onOpenBuilder, onSessionUpdated })
                 {m.role === 'assistant' && (
                   <div className="flex items-center gap-2 px-1">
                     <span className={`text-[11px] font-bold uppercase tracking-wider ${colors.text}`}>{role}</span>
-                    {metadata.model && <span className={`text-[10px] opacity-40 font-mono ${dark ? 'text-white' : 'text-slate-900'}`}>• {metadata.model}</span>}
                   </div>
                 )}
                 <div className={`rounded-2xl px-4 py-3 text-[14px] leading-relaxed transition-all ${
@@ -377,9 +385,23 @@ const ChatComposer = ({ input, setInput, send, sending, attachedFile, onAttach, 
             ? 'bg-black/60 border-white/5 group-focus-within:border-white/10' 
             : 'bg-white/80 border-slate-200 group-focus-within:border-slate-300'
         }`}>
-          <button type="button" onClick={onAttach} title="Attach file" className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
-            <Paperclip className="w-4 h-4" />
-          </button>
+          <div className="flex flex-col gap-2">
+            <button type="button" onClick={onAttach} title="Attach file" className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
+              <Paperclip className="w-4 h-4" />
+            </button>
+            <div className="flex flex-col items-center gap-1 group/prefs relative">
+               <button type="button" title={`Current mode: ${preference}`} className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${preference !== 'balanced' ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-400'}`}>
+                 <Zap className="w-4 h-4" />
+               </button>
+               <div className="absolute bottom-full left-0 mb-2 hidden group-hover/prefs:flex flex-col bg-slate-900 border border-white/10 rounded-xl p-1 shadow-2xl z-50">
+                 {['balanced', 'quality', 'speed', 'cost'].map(p => (
+                   <button key={p} type="button" onClick={() => setPreference(p)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase text-left transition-colors ${preference === p ? 'bg-cyan-500 text-white' : 'text-white/40 hover:text-white hover:bg-white/5'}`}>
+                     {p}
+                   </button>
+                 ))}
+               </div>
+            </div>
+          </div>
           <button type="button" onMouseDown={onStartRecording} onMouseUp={onStopRecording} onMouseLeave={onStopRecording}
             title="Hold to speak" 
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${recording ? 'bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse' : dark ? 'text-white/20 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}>
@@ -394,9 +416,14 @@ const ChatComposer = ({ input, setInput, send, sending, attachedFile, onAttach, 
             rows={1}
             className={`flex-1 bg-transparent outline-none resize-none text-[15px] font-medium py-2 max-h-40 ${dark ? 'text-white placeholder:text-white/20' : 'text-slate-800 placeholder:text-slate-400'}`}
           />
-          <button type="submit" disabled={sending || !input.trim() || isOutOfCredits} className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center disabled:opacity-20 transition-all transform active:scale-90 shadow-lg shadow-blue-500/20">
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-2 mb-1 mr-1">
+             <button type="button" onClick={() => setUltraMode(!ultraMode)} title="Toggle Ultra High Performance Mode" className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${ultraMode ? 'bg-gradient-to-br from-amber-400 to-orange-600 text-white shadow-lg shadow-amber-500/20 scale-110' : dark ? 'bg-white/5 text-white/20 hover:text-white' : 'bg-slate-100 text-slate-400'}`}>
+               <Sparkles className={`w-4 h-4 ${ultraMode ? 'animate-pulse' : ''}`} />
+             </button>
+             <button type="submit" disabled={sending || !input.trim() || isOutOfCredits} className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center disabled:opacity-20 transition-all transform active:scale-90 shadow-lg shadow-blue-500/20">
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
       </div>
     </form>
