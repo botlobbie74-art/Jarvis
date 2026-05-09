@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
-import { Send, Loader2, Paperclip, X as XIcon, Hammer } from 'lucide-react';
+import { Send, Loader2, Paperclip, X as XIcon, Hammer, Mic, MousePointer2 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../context/ThemeContext';
 
