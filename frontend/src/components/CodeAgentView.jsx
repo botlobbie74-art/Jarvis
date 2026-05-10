@@ -423,10 +423,11 @@ export default function CodeAgentView() {
                 ))}
               </div>
             </div>
-          </div>
+          )}
         </div>
-      ) : (
-        <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-[#030305]' : 'bg-slate-50'}`}>
+      </div>
+    ) : (
+      <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-[#030305]' : 'bg-slate-50'}`}>
       {/* Header */}
       <header className={`px-5 py-3 border-b flex items-center gap-3 sticky top-0 z-50 backdrop-blur-xl ${dark ? 'bg-black/80 border-white/10' : 'bg-white/90 border-slate-200 shadow-sm'}`}>
         <button onClick={() => setActive(null)} className={`text-[13px] font-medium transition-opacity hover:opacity-100 ${dark ? 'text-white/40' : 'text-slate-500'}`}>← Projets</button>
