@@ -279,10 +279,15 @@ export default function CodeAgentView() {
     }
   };
 
-  // ============ HOME ============
-  if (!active) {
-    return (
-      <div className={`flex-1 overflow-y-auto relative ${dark ? 'bg-black text-white' : 'bg-white text-slate-900'}`}>
+  // ============ RENDERING ============
+  const plan = active?.project?.plan || {};
+  const planSteps = plan?.steps || [];
+  const activeJobs = jobs.filter(j => j.status === 'processing');
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {!active ? (
+        <div className={`flex-1 overflow-y-auto relative ${dark ? 'bg-black text-white' : 'bg-white text-slate-900'}`}>
         {dark && <div className="absolute inset-0 grain-bg pointer-events-none opacity-50" />}
         <div className="absolute top-4 right-6 z-20">
           <button onClick={toggle} className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${dark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-700'}`}>
@@ -418,19 +423,8 @@ export default function CodeAgentView() {
                 ))}
               </div>
             </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ============ PROJECT VIEW ============
-  const plan = active.project.plan || {};
-  const planSteps = plan.steps || [];
-  const activeJobs = jobs.filter(j => j.status === 'processing');
-
-  return (
-    <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-[#030305]' : 'bg-slate-50'}`}>
+      ) : (
+        <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-[#030305]' : 'bg-slate-50'}`}>
       {/* Header */}
       <header className={`px-5 py-3 border-b flex items-center gap-3 sticky top-0 z-50 backdrop-blur-xl ${dark ? 'bg-black/80 border-white/10' : 'bg-white/90 border-slate-200 shadow-sm'}`}>
         <button onClick={() => setActive(null)} className={`text-[13px] font-medium transition-opacity hover:opacity-100 ${dark ? 'text-white/40' : 'text-slate-500'}`}>← Projets</button>
@@ -461,6 +455,11 @@ export default function CodeAgentView() {
           <a href={active.project.github_url} target="_blank" rel="noopener noreferrer" className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all flex items-center gap-1.5 ${active.project.github_url ? 'text-slate-500 hover:text-slate-700' : 'hidden'}`}>
             <Github className="w-3.5 h-3.5" />GitHub
           </a>
+          <button onClick={() => setMarketOpen(true)}
+            title="Ajoutez des fonctionnalités prêtes à l'emploi à votre projet (Auth Google, Stripe, Notifications email...)"
+            className={`h-8 px-3 rounded-lg text-[12px] font-semibold transition-all flex items-center gap-1.5 ${dark ? 'text-white/40 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-100'}`}>
+            <Plus className="w-3.5 h-3.5" /> Ajouter une fonctionnalité
+          </button>
           <button 
             onClick={() => {
               if (isFree) {
@@ -726,7 +725,7 @@ export default function CodeAgentView() {
             )}
           </div>
         </div>
-      </div>
+      )}
       {/* Deploy Modal */}
       {deployModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">

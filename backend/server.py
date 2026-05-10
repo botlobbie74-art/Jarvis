@@ -34,7 +34,7 @@ JWT_ALG = 'HS256'
 JWT_EXP_DAYS = 7
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')  # legacy, unused
 WA_SERVICE_URL = os.environ.get('WA_SERVICE_URL', 'http://localhost:8002')
-APP_PUBLIC_URL = os.environ.get('APP_PUBLIC_URL', 'https://jarvisagent.app')
+APP_PUBLIC_URL = os.environ.get('APP_PUBLIC_URL') or os.environ.get('RENDER_EXTERNAL_URL') or 'https://jarvisagent.app'
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 STRIPE_PRICE_STARTER = os.environ.get('STRIPE_PRICE_STARTER', '')
@@ -48,12 +48,27 @@ GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 APP_BASE_URL = os.environ.get('APP_BASE_URL', 'http://localhost:3000')
 
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME', 'JarvisAgentBot')
+
 sb: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 app = FastAPI(title="Jarvis API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://jarvisagent.app",
+        "http://localhost:3000",
+        "http://localhost:5173"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 api_router = APIRouter(prefix="/api")
 log = logging.getLogger("jarvis")
 
@@ -905,8 +920,6 @@ async def delete_task(task_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 # ============ CODE AGENT (IDE) ============
-TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
-TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME', 'JarvisAgentBot')
 
 # In-memory link codes (short-lived, production should use Redis/DB)
 _telegram_link_codes: Dict[str, str] = {}  # code -> user_id
@@ -1691,6 +1704,29 @@ async def telegram_status(user=Depends(get_current_user)):
         return {"status": "connected"}
     return {"status": "pending"}
 
+@api_router.get("/telegram/verify")
+async def telegram_verify():
+    """Diagnostic endpoint to check Telegram webhook status."""
+    if not TELEGRAM_BOT_TOKEN:
+        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN not set"}
+    
+    async with httpx.AsyncClient(timeout=10) as cli:
+        try:
+            # Get bot info
+            me = await cli.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe")
+            # Get webhook info
+            wh = await cli.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getWebhookInfo")
+            
+            return {
+                "ok": True,
+                "bot": me.json().get("result") if me.status_code == 200 else f"Error: {me.text}",
+                "webhook": wh.json().get("result") if wh.status_code == 200 else f"Error: {wh.text}",
+                "app_public_url": APP_PUBLIC_URL,
+                "expected_webhook_url": f"{APP_PUBLIC_URL}/api/telegram/webhook"
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
 async def _tg_send(chat_id, text):
     if not TELEGRAM_BOT_TOKEN:
         return
@@ -2339,22 +2375,23 @@ async def startup_event():
     if TELEGRAM_BOT_TOKEN:
         try:
             webhook_url = f"{APP_PUBLIC_URL}/api/telegram/webhook"
-            if "localhost" in webhook_url:
+            log.info(f"Setting Telegram webhook to: {webhook_url}")
+            if "localhost" in webhook_url or "127.0.0.1" in webhook_url:
                 log.warning("Localhost detected in APP_PUBLIC_URL. Telegram webhook will not work unless you use ngrok/tunnel.")
+            
+            if "jarvisagent.app" in webhook_url and "api." not in webhook_url:
+                log.warning("Detected frontend URL (jarvisagent.app) instead of backend URL (api.jarvisagent.app) for Telegram webhook. This will likely fail.")
+
             async with httpx.AsyncClient() as cli:
                 r = await cli.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
                                    json={"url": webhook_url})
-                log.info(f"Telegram webhook set: {r.status_code} {r.text}")
+                if r.status_code == 200:
+                    log.info(f"Telegram webhook set successfully: {r.text}")
+                else:
+                    log.error(f"Failed to set Telegram webhook: {r.status_code} {r.text}")
         except Exception as e:
             log.warning(f"Failed to set Telegram webhook: {e}")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["https://jarvisagent.app", "http://localhost:3000", "http://localhost:8000", "http://localhost:8001"],
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
 app.include_router(api_router)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 @api_router.post("/voice/transcribe")
