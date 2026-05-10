@@ -2028,6 +2028,10 @@ async def get_plan(user=Depends(get_current_user)):
         "credit_prices": CREDIT_PRICES
     }
 
+@api_router.get("/user/credits")
+async def get_user_credits(user=Depends(get_current_user)):
+    return {"balance": _user_credits(user["id"])}
+
 class CreditTopupIn(BaseModel):
     amount_credits: str # "1000", "5000", "10000"
 

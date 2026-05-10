@@ -17,7 +17,7 @@ import PersonasView from '../components/PersonasView';
 import { t } from '../lib/i18n';
 
 export default function Dashboard() {
-  const { user, logout, loading, refreshUser } = useAuth();
+  const { user, logout, loading, refreshUser, refreshCredits } = useAuth();
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -49,10 +49,18 @@ export default function Dashboard() {
   useEffect(() => { 
     if (user) {
       loadSessions(); 
-      const t = setInterval(refreshUser, 30000);
+      // Full user refresh every 60s
+      const fullSync = setInterval(refreshUser, 60000);
+      // Balance-only refresh every 10s for better UX
+      const creditSync = setInterval(refreshCredits, 10000);
+      
       const h = () => setView('billing');
       window.addEventListener('open-billing', h);
-      return () => { clearInterval(t); window.removeEventListener('open-billing', h); };
+      return () => { 
+        clearInterval(fullSync); 
+        clearInterval(creditSync);
+        window.removeEventListener('open-billing', h); 
+      };
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 

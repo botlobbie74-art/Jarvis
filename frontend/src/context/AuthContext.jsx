@@ -98,8 +98,15 @@ export const AuthProvider = ({ children }) => {
     } catch (_) {}
   };
 
+  const refreshCredits = async () => {
+    try {
+      const { data } = await api.get('/user/credits');
+      setUser(prev => prev ? { ...prev, credits: data.balance } : null);
+    } catch (_) {}
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, loginWithGoogle, loginWithGithub, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, loginWithGoogle, loginWithGithub, refreshUser, refreshCredits }}>
       {children}
     </AuthContext.Provider>
   );

@@ -290,11 +290,6 @@ export default function CodeAgentView() {
           </button>
         </div>
         <div className="relative z-10 max-w-4xl mx-auto px-6 pt-32 pb-10">
-          <div className="text-center mb-12">
-            <h1 className={`text-[40px] font-[900] tracking-tighter mb-4 ${dark ? 'text-white' : 'text-slate-900'}`}>
-              {t('build_hero')}
-            </h1>
-          </div>
           <div className={`mt-16 rounded-3xl border shadow-2xl transition-all ${dark ? 'bg-[#0a0a0c] border-white/10' : 'bg-white border-slate-200'}`}>
             {attachedFile && (
               <div className="flex items-center gap-2 px-6 pt-5 pb-0">
@@ -306,13 +301,13 @@ export default function CodeAgentView() {
               </div>
             )}
             
-            <div className="px-6 pt-5 flex items-center justify-between">
-               <span className={`text-[12px] font-medium ${dark ? 'text-white/30' : 'text-slate-400'}`}>Ctrl+Enter pour générer</span>
+            <div className="px-6 pt-5 flex items-center justify-end">
                <button 
                 onClick={() => setMarketOpen(true)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${dark ? 'bg-white/5 hover:bg-white/10 text-white/50 hover:text-cyan-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-cyan-600'}`}
+                title="Ajoutez des fonctionnalités prêtes à l'emploi à votre projet (Auth Google, Stripe, Notifications email...)"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${dark ? 'bg-white/5 hover:bg-white/10 text-white/50 hover:text-cyan-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-cyan-600'}`}
                >
-                 <Plus className="w-3 h-3" /> Modules
+                 <Plus className="w-3.5 h-3.5" /> Ajouter une fonctionnalité
                </button>
             </div>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}
