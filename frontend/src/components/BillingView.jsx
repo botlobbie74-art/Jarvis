@@ -154,8 +154,8 @@ export default function BillingView() {
 
         <div className="mb-10">
           <h2 className="text-[18px] font-bold mb-3">Forfaits mensuels</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {PLANS.map((monthlyPlan) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {PLANS.filter(p => p.id !== 'free').map((monthlyPlan) => (
               <UpgradeCard
                 key={monthlyPlan.id}
                 plan={monthlyPlan}
@@ -164,6 +164,21 @@ export default function BillingView() {
                 onClick={() => monthlyPlan.id !== 'free' && topup(monthlyPlan.id)}
               />
             ))}
+          </div>
+          
+          <div className="mt-8 flex justify-center">
+            {plan !== 'free' ? (
+              <button 
+                onClick={() => topup('free')} 
+                className="text-[13px] text-white/40 hover:text-white transition-colors"
+              >
+                Revenir au plan gratuit
+              </button>
+            ) : (
+              <div className="px-6 py-3 rounded-2xl bg-white/5 border border-white/5 text-[13px] text-white/40">
+                Vous utilisez actuellement le plan <span className="font-bold text-white/60">Gratuit</span>
+              </div>
+            )}
           </div>
         </div>
 
