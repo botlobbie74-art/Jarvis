@@ -423,6 +423,8 @@ export default function CodeAgentView() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
       ) : (
         <div className={`flex-1 flex flex-col min-h-0 ${dark ? 'bg-[#030305]' : 'bg-slate-50'}`}>
       {/* Header */}
@@ -725,7 +727,9 @@ export default function CodeAgentView() {
             )}
           </div>
         </div>
-      )}
+      </div>
+    </div>
+  )}
       {/* Deploy Modal */}
       {deployModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
